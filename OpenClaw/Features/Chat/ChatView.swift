@@ -3,6 +3,7 @@ import SwiftUI
 struct ChatView: View {
     @EnvironmentObject var gateway: GatewayClient
     @StateObject private var chatService = ChatService(gateway: .shared)
+    @StateObject private var approvalService = ExecApprovalService(gateway: .shared)
     @State private var inputText = ""
     @State private var scrollProxy: ScrollViewProxy?
     @FocusState private var isInputFocused: Bool
@@ -10,6 +11,10 @@ struct ChatView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                // Exec approval banner
+                ExecApprovalBanner(service: approvalService)
+                    .animation(.spring(duration: 0.3), value: approvalService.pendingApprovals.count)
+
                 // Messages
                 ScrollViewReader { proxy in
                     ScrollView {

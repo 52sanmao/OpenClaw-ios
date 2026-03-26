@@ -21,6 +21,15 @@ struct SettingsView: View {
                     }
                 }
 
+                // Diagnostics
+                Section("Diagnostics") {
+                    NavigationLink {
+                        HealthView()
+                    } label: {
+                        Label("Health & Channels", systemImage: "heart.text.square.fill")
+                    }
+                }
+
                 // Actions
                 Section("Actions") {
                     Button(role: .destructive) {

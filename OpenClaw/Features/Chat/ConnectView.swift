@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ConnectView: View {
     @EnvironmentObject var gateway: GatewayClient
+    @StateObject private var discovery = BonjourDiscovery()
     @State private var host = ""
     @State private var port = "18789"
     @State private var token = ""
@@ -27,6 +28,54 @@ struct ConnectView: View {
                             .foregroundStyle(.secondary)
                     }
                     .padding(.top, 40)
+
+                    // Discovered gateways
+                    if !discovery.gateways.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Label("Discovered on Network", systemImage: "wifi")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 24)
+
+                            ForEach(discovery.gateways) { gw in
+                                Button {
+                                    host = gw.host
+                                    port = String(gw.port)
+                                    useTLS = gw.useTLS
+                                    Haptics.selection()
+                                } label: {
+                                    HStack {
+                                        Image(systemName: "antenna.radiowaves.left.and.right")
+                                            .foregroundStyle(.orange)
+                                        VStack(alignment: .leading) {
+                                            Text(gw.displayName ?? gw.name)
+                                                .font(.subheadline.bold())
+                                            Text("\(gw.host):\(gw.port)")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        Spacer()
+                                        if host == gw.host && port == String(gw.port) {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .foregroundStyle(.orange)
+                                        }
+                                    }
+                                    .padding(12)
+                                    .background(Color(.systemGray6))
+                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                                }
+                                .buttonStyle(.plain)
+                                .padding(.horizontal, 24)
+                            }
+                        }
+                    } else if discovery.isSearching {
+                        HStack {
+                            ProgressView()
+                            Text("Searching for gateways...")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
 
                     // Connection form
                     VStack(spacing: 16) {
@@ -93,7 +142,10 @@ struct ConnectView: View {
                 }
             }
             .navigationBarHidden(true)
-            .onAppear(perform: loadSavedConfig)
+            .onAppear {
+                loadSavedConfig()
+                discovery.startBrowsing()
+            }
         }
     }
 
