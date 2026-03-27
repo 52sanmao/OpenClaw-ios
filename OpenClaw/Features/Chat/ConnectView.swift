@@ -11,31 +11,34 @@ struct ConnectView: View {
     @State private var errorMessage: String?
 
     var body: some View {
-        NavigationStack {
+        ZStack {
+            Color.surfaceLowest.ignoresSafeArea()
+            BlueprintGrid()
+
             ScrollView {
-                VStack(spacing: 32) {
+                VStack(alignment: .leading, spacing: 32) {
                     // Logo
-                    VStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 12) {
                         Image(systemName: "pawprint.fill")
-                            .font(.system(size: 64))
-                            .foregroundStyle(.orange)
+                            .font(.system(size: 48))
+                            .foregroundStyle(Color.ocPrimary)
+                            .shadow(color: Color.ocPrimary.opacity(0.3), radius: 12)
 
                         Text("OpenClaw")
-                            .font(.largeTitle.bold())
+                            .font(.headline(32))
+                            .foregroundStyle(Color.textPrimary)
 
-                        Text("Connect to your gateway")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                        Text("GATEWAY CONNECTION")
+                            .font(.label(10, weight: .bold))
+                            .tracking(2)
+                            .foregroundStyle(Color.textTertiary)
                     }
-                    .padding(.top, 40)
+                    .padding(.top, 60)
 
                     // Discovered gateways
                     if !discovery.gateways.isEmpty {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Label("Discovered on Network", systemImage: "wifi")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .padding(.horizontal, 24)
+                        VStack(alignment: .leading, spacing: 10) {
+                            SectionLabel(text: "Discovered on Network")
 
                             ForEach(discovery.gateways) { gw in
                                 Button {
@@ -44,111 +47,122 @@ struct ConnectView: View {
                                     useTLS = gw.useTLS
                                     Haptics.selection()
                                 } label: {
-                                    HStack {
-                                        Image(systemName: "antenna.radiowaves.left.and.right")
-                                            .foregroundStyle(.orange)
-                                        VStack(alignment: .leading) {
+                                    HStack(spacing: 12) {
+                                        IconAvatar(icon: "antenna.radiowaves.left.and.right", size: 40)
+
+                                        VStack(alignment: .leading, spacing: 2) {
                                             Text(gw.displayName ?? gw.name)
-                                                .font(.subheadline.bold())
+                                                .font(.body(14, weight: .semibold))
+                                                .foregroundStyle(Color.textPrimary)
                                             Text("\(gw.host):\(gw.port)")
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
+                                                .font(.label(11))
+                                                .foregroundStyle(Color.textTertiary)
                                         }
                                         Spacer()
                                         if host == gw.host && port == String(gw.port) {
                                             Image(systemName: "checkmark.circle.fill")
-                                                .foregroundStyle(.orange)
+                                                .foregroundStyle(Color.ocPrimary)
                                         }
                                     }
-                                    .padding(12)
-                                    .background(Color(.systemGray6))
-                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                                    .padding(14)
+                                    .vanguardCard(elevated: true)
                                 }
                                 .buttonStyle(.plain)
-                                .padding(.horizontal, 24)
                             }
                         }
                     } else if discovery.isSearching {
-                        HStack {
-                            ProgressView()
-                            Text("Searching for gateways...")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                        HStack(spacing: 8) {
+                            ProgressView().tint(.ocPrimary)
+                            Text("SCANNING NETWORK")
+                                .font(.label(10, weight: .bold))
+                                .tracking(2)
+                                .foregroundStyle(Color.textTertiary)
                         }
                     }
 
                     // Connection form
-                    VStack(spacing: 16) {
-                        FormField(title: "Host", placeholder: "192.168.1.10 or mybox.tail...", text: $host)
+                    VStack(alignment: .leading, spacing: 16) {
+                        SectionLabel(text: "Manual Connection")
+
+                        VanguardField(title: "HOST", placeholder: "192.168.1.10 or mybox.tail...", text: $host)
                             .textInputAutocapitalization(.never)
                             .keyboardType(.URL)
 
-                        FormField(title: "Port", placeholder: "18789", text: $port)
+                        VanguardField(title: "PORT", placeholder: "18789", text: $port)
                             .keyboardType(.numberPad)
 
-                        FormField(title: "Token", placeholder: "Gateway auth token", text: $token, isSecure: true)
+                        VanguardField(title: "TOKEN", placeholder: "Gateway auth token", text: $token, isSecure: true)
 
-                        Toggle(isOn: $useTLS) {
-                            Label("Use TLS (wss://)", systemImage: "lock.fill")
-                                .font(.subheadline)
-                        }
-                        .tint(.orange)
-                    }
-                    .padding(.horizontal, 24)
-
-                    // Error message
-                    if let errorMessage {
                         HStack {
-                            Image(systemName: "exclamationmark.triangle.fill")
-                                .foregroundStyle(.red)
-                            Text(errorMessage)
+                            Image(systemName: "lock.fill")
                                 .font(.caption)
-                                .foregroundStyle(.red)
+                                .foregroundStyle(Color.textTertiary)
+                            Text("USE TLS (WSS://)")
+                                .font(.label(11, weight: .medium))
+                                .tracking(1)
+                                .foregroundStyle(Color.textSecondary)
+                            Spacer()
+                            Toggle("", isOn: $useTLS)
+                                .labelsHidden()
+                                .tint(.ocPrimary)
                         }
-                        .padding(.horizontal, 24)
+                        .padding(.horizontal, 4)
+                    }
+
+                    // Error
+                    if let errorMessage {
+                        HStack(spacing: 8) {
+                            StatusLED(color: Color.ocError)
+                            Text(errorMessage)
+                                .font(.body(12))
+                                .foregroundStyle(Color.ocError)
+                        }
                     }
 
                     // Connect button
-                    Button {
-                        connect()
-                    } label: {
+                    Button { connect() } label: {
                         HStack {
                             if isConnecting {
-                                ProgressView()
-                                    .tint(.white)
+                                ProgressView().tint(.black)
                             }
-                            Text(isConnecting ? "Connecting..." : "Connect")
-                                .font(.headline)
+                            Text(isConnecting ? "CONNECTING" : "CONNECT")
+                                .font(.label(14, weight: .bold))
+                                .tracking(2)
                         }
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(canConnect ? Color.orange : Color.gray)
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                        .padding(.vertical, 16)
+                        .background(
+                            canConnect
+                                ? LinearGradient(colors: [.ocPrimary, .ocPrimaryContainer], startPoint: .leading, endPoint: .trailing)
+                                : LinearGradient(colors: [.surfaceContainerHigh, .surfaceContainerHigh], startPoint: .leading, endPoint: .trailing)
+                        )
+                        .foregroundStyle(canConnect ? .black : Color.textTertiary)
+                        .clipShape(Capsule())
                     }
                     .disabled(!canConnect || isConnecting)
-                    .padding(.horizontal, 24)
 
-                    // QR scan hint
-                    Button {
-                        // TODO: QR code scanning for gateway config
-                    } label: {
-                        Label("Scan QR Code", systemImage: "qrcode.viewfinder")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                    // QR scan
+                    Button {} label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "qrcode.viewfinder")
+                            Text("SCAN QR CODE")
+                                .font(.label(11, weight: .medium))
+                                .tracking(1.5)
+                        }
+                        .foregroundStyle(Color.ocPrimary)
                     }
+                    .frame(maxWidth: .infinity)
 
-                    Spacer()
+                    Spacer(minLength: 40)
                 }
+                .padding(.horizontal, 24)
             }
-            .navigationBarHidden(true)
-            .onAppear {
-                loadSavedConfig()
-                discovery.startBrowsing()
-                // Auto-connect if config is saved
-                if let saved = ConnectionStore.load(), !saved.host.isEmpty, !saved.token.isEmpty {
-                    connect()
-                }
+        }
+        .onAppear {
+            loadSavedConfig()
+            discovery.startBrowsing()
+            if let saved = ConnectionStore.load(), !saved.host.isEmpty, !saved.token.isEmpty {
+                connect()
             }
         }
     }
@@ -173,17 +187,14 @@ struct ConnectView: View {
             errorMessage = "Invalid port number"
             return
         }
-
         let config = ConnectionConfig(
             host: host.trimmingCharacters(in: .whitespaces),
             port: portNum,
             useTLS: useTLS,
             token: token.trimmingCharacters(in: .whitespaces)
         )
-
         isConnecting = true
         errorMessage = nil
-
         Task {
             do {
                 try await gateway.connect(config: config)
@@ -196,19 +207,21 @@ struct ConnectView: View {
     }
 }
 
-// MARK: - Form Field
+// MARK: - Vanguard Input Field
 
-struct FormField: View {
+struct VanguardField: View {
     let title: String
     let placeholder: String
     @Binding var text: String
     var isSecure = false
+    @FocusState private var isFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(title)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(.label(10, weight: .bold))
+                .tracking(1.5)
+                .foregroundStyle(Color.textTertiary)
 
             Group {
                 if isSecure {
@@ -217,11 +230,21 @@ struct FormField: View {
                     TextField(placeholder, text: $text)
                 }
             }
+            .font(.body(14))
+            .foregroundStyle(Color.textPrimary)
+            .focused($isFocused)
             .textFieldStyle(.plain)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background(Color(.systemGray6))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(Color.surfaceContainerLow)
+            .clipShape(RoundedRectangle(cornerRadius: 20))
+            .overlay(
+                RoundedRectangle(cornerRadius: 20)
+                    .strokeBorder(
+                        isFocused ? Color.ocPrimary.opacity(0.4) : Color.white.opacity(0.03),
+                        lineWidth: 1
+                    )
+            )
         }
     }
 }

@@ -6,109 +6,135 @@ struct SessionsView: View {
     @State private var isLoading = false
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if isLoading {
-                    ProgressView("Loading sessions...")
+        ZStack {
+            Color.surfaceBase.ignoresSafeArea()
+            BlueprintGrid()
+
+            VStack(alignment: .leading, spacing: 0) {
+                // Header
+                VStack(alignment: .leading, spacing: 4) {
+                    SectionLabel(text: "Active Protocol")
+                    Text("Sessions")
+                        .font(.headline(28))
+                        .foregroundStyle(Color.textPrimary)
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+                .padding(.bottom, 12)
+
+                if isLoading && sessions.isEmpty {
+                    Spacer()
+                    HStack { Spacer(); ProgressView().tint(.ocPrimary); Spacer() }
+                    Spacer()
                 } else if sessions.isEmpty {
-                    ContentUnavailableView(
-                        "No Sessions",
-                        systemImage: "list.bullet.rectangle.portrait",
-                        description: Text("Active sessions will appear here.")
-                    )
+                    Spacer()
+                    VStack(spacing: 12) {
+                        Image(systemName: "list.bullet.rectangle.portrait")
+                            .font(.system(size: 40))
+                            .foregroundStyle(Color.textTertiary)
+                        Text("NO ACTIVE SESSIONS")
+                            .font(.label(11, weight: .bold))
+                            .tracking(2)
+                            .foregroundStyle(Color.textTertiary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    Spacer()
                 } else {
-                    List(sessions) { session in
-                        SessionRow(session: session)
-                    }
-                    .listStyle(.insetGrouped)
-                }
-            }
-            .navigationTitle("Sessions")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        Task { await loadSessions() }
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
+                    ScrollView {
+                        LazyVStack(spacing: 10) {
+                            ForEach(sessions) { session in
+                                SessionCard(session: session)
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
                     }
                 }
             }
-            .task { await loadSessions() }
         }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { Task { await loadSessions() } } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .foregroundStyle(Color.ocPrimary)
+                }
+            }
+        }
+        .task { await loadSessions() }
     }
 
     private func loadSessions() async {
         isLoading = true
         defer { isLoading = false }
-
         do {
             let response = try await gateway.sendRequest(
                 method: "sessions.list",
-                params: [
-                    "limit": 50,
-                    "includeDerivedTitles": true,
-                    "includeLastMessage": true
-                ]
+                params: ["limit": 50, "includeDerivedTitles": true, "includeLastMessage": true]
             )
-
             guard response.ok,
                   let payload = response.payload?.dict,
-                  let sessionsArray = payload["sessions"] as? [[String: Any]] else { return }
-
-            sessions = sessionsArray.compactMap { dict in
+                  let arr = payload["sessions"] as? [[String: Any]] else { return }
+            sessions = arr.compactMap { dict in
                 guard let key = dict["key"] as? String else { return nil }
                 return SessionInfo(
-                    key: key,
-                    agentId: dict["agentId"] as? String,
-                    label: dict["label"] as? String,
-                    lastActive: nil,
+                    key: key, agentId: dict["agentId"] as? String,
+                    label: dict["label"] as? String, lastActive: nil,
                     derivedTitle: dict["derivedTitle"] as? String,
                     lastMessage: dict["lastMessage"] as? String,
                     kind: dict["kind"] as? String
                 )
             }
-        } catch {
-            // Silently fail, user can retry
-        }
+        } catch {}
     }
 }
 
-struct SessionRow: View {
+struct SessionCard: View {
     let session: SessionInfo
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text(session.displayTitle)
-                    .font(.headline)
-                    .lineLimit(1)
+        HStack(spacing: 14) {
+            IconAvatar(icon: iconForKind, color: colorForKind, size: 44)
 
-                Spacer()
-
-                if let kind = session.kind {
-                    Text(kind)
-                        .font(.caption2)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 2)
-                        .background(Color.orange.opacity(0.15))
-                        .foregroundStyle(.orange)
-                        .clipShape(Capsule())
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(session.displayTitle)
+                        .font(.body(14, weight: .semibold))
+                        .foregroundStyle(Color.textPrimary)
+                        .lineLimit(1)
+                    Spacer()
+                    if let kind = session.kind {
+                        KindBadge(text: kind, color: colorForKind)
+                    }
+                }
+                if let msg = session.lastMessage {
+                    Text(msg)
+                        .font(.body(12))
+                        .foregroundStyle(Color.textTertiary)
+                        .lineLimit(2)
                 }
             }
 
-            if let lastMessage = session.lastMessage {
-                Text(lastMessage)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-            }
-
-            if let agentId = session.agentId {
-                Text("Agent: \(agentId)")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
-            }
+            Image(systemName: "chevron.right")
+                .font(.caption2)
+                .foregroundStyle(Color.textTertiary)
         }
-        .padding(.vertical, 4)
+        .padding(14)
+        .vanguardCard()
+    }
+
+    private var iconForKind: String {
+        switch session.kind {
+        case "cron": "clock.fill"
+        case "subagent": "arrow.triangle.branch"
+        default: "bubble.left.fill"
+        }
+    }
+
+    private var colorForKind: Color {
+        switch session.kind {
+        case "cron": Color.ocTertiary
+        case "subagent": Color.textTertiary
+        default: Color.ocPrimary
+        }
     }
 }

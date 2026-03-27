@@ -6,82 +6,80 @@ struct LiveAgentsView: View {
     @StateObject private var viewModel = LiveAgentsViewModel()
 
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                // Summary bar
-                if !viewModel.agents.isEmpty {
-                    SummaryBar(
-                        active: viewModel.agents.filter { $0.isActive }.count,
-                        total: viewModel.agents.count
-                    )
-                }
+        ZStack {
+            Color.surfaceBase.ignoresSafeArea()
+            BlueprintGrid()
 
-                Group {
-                    if viewModel.isLoading && viewModel.agents.isEmpty {
-                        ProgressView("Loading agents...")
-                    } else if viewModel.agents.isEmpty {
-                        ContentUnavailableView(
-                            "No Agents",
-                            systemImage: "bolt.slash",
-                            description: Text("Active agent runs will appear here.")
-                        )
-                    } else {
-                        ScrollView {
-                            LazyVStack(spacing: 12) {
-                                ForEach(viewModel.agents) { agent in
-                                    AgentCard(agent: agent)
-                                }
+            VStack(alignment: .leading, spacing: 0) {
+                // Header
+                HStack(alignment: .bottom) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        SectionLabel(text: "Live Monitoring")
+                        Text("Agents")
+                            .font(.headline(28))
+                            .foregroundStyle(Color.textPrimary)
+                    }
+                    Spacer()
+                    if !viewModel.agents.isEmpty {
+                        let active = viewModel.agents.filter { $0.isActive }.count
+                        HStack(spacing: 8) {
+                            HStack(spacing: 4) {
+                                StatusLED(color: active > 0 ? Color.ocPrimary : Color.textTertiary, pulsing: active > 0)
+                                Text("\(active) ACTIVE")
+                                    .font(.label(9, weight: .bold))
+                                    .tracking(1)
+                                    .foregroundStyle(active > 0 ? Color.ocPrimary : Color.textTertiary)
                             }
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 12)
                         }
                     }
                 }
-            }
-            .navigationTitle("Agents")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        Task { await viewModel.refresh(gateway: gateway) }
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
+                .padding(.horizontal, 20)
+                .padding(.top, 16)
+                .padding(.bottom, 12)
+
+                if viewModel.isLoading && viewModel.agents.isEmpty {
+                    Spacer()
+                    HStack { Spacer(); ProgressView().tint(.ocPrimary); Spacer() }
+                    Spacer()
+                } else if viewModel.agents.isEmpty {
+                    Spacer()
+                    VStack(spacing: 12) {
+                        Image(systemName: "bolt.slash")
+                            .font(.system(size: 40))
+                            .foregroundStyle(Color.textTertiary)
+                        Text("NO ACTIVE AGENTS")
+                            .font(.label(11, weight: .bold))
+                            .tracking(2)
+                            .foregroundStyle(Color.textTertiary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    Spacer()
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: 10) {
+                            ForEach(viewModel.agents) { agent in
+                                AgentCard(agent: agent)
+                            }
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
                     }
                 }
             }
-            .task {
-                viewModel.startListening(gateway: gateway)
-                await viewModel.refresh(gateway: gateway)
+        }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    Task { await viewModel.refresh(gateway: gateway) }
+                } label: {
+                    Image(systemName: "arrow.clockwise").foregroundStyle(Color.ocPrimary)
+                }
             }
         }
-    }
-}
-
-// MARK: - Summary Bar
-
-private struct SummaryBar: View {
-    let active: Int
-    let total: Int
-
-    var body: some View {
-        HStack(spacing: 16) {
-            HStack(spacing: 6) {
-                Circle()
-                    .fill(active > 0 ? Color.orange : Color.gray)
-                    .frame(width: 8, height: 8)
-                Text("\(active) active")
-                    .font(.subheadline.bold())
-                    .foregroundStyle(active > 0 ? .orange : .secondary)
-            }
-
-            Text("\(total - active) idle")
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-
-            Spacer()
+        .task {
+            viewModel.startListening(gateway: gateway)
+            await viewModel.refresh(gateway: gateway)
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 10)
-        .background(.ultraThinMaterial)
     }
 }
 
@@ -92,20 +90,22 @@ private struct AgentCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            // Header: name + status
             HStack {
-                Text(agent.emoji ?? "")
-                    .font(.title2)
+                if let emoji = agent.emoji {
+                    Text(emoji)
+                        .font(.title3)
+                }
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(agent.displayName)
-                        .font(.headline)
+                        .font(.body(14, weight: .semibold))
+                        .foregroundStyle(Color.textPrimary)
                         .lineLimit(1)
 
                     if let title = agent.sessionTitle {
                         Text(title)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .font(.body(11))
+                            .foregroundStyle(Color.textTertiary)
                             .lineLimit(1)
                     }
                 }
@@ -115,55 +115,47 @@ private struct AgentCard: View {
                 StatusBadge(status: agent.status)
             }
 
-            // Model + elapsed
-            HStack(spacing: 12) {
+            HStack(spacing: 10) {
                 if let model = agent.model {
-                    Label(model, systemImage: "cpu")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                    HStack(spacing: 3) {
+                        Image(systemName: "cpu")
+                            .font(.system(size: 9))
+                        Text(model)
+                            .font(.label(9))
+                    }
+                    .foregroundStyle(Color.textTertiary)
+                    .lineLimit(1)
                 }
 
                 if let elapsed = agent.elapsedFormatted {
-                    Label(elapsed, systemImage: "timer")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                    HStack(spacing: 3) {
+                        Image(systemName: "timer")
+                            .font(.system(size: 9))
+                        Text(elapsed)
+                            .font(.label(9))
+                    }
+                    .foregroundStyle(Color.textTertiary)
                 }
 
                 if let kind = agent.kind {
-                    Text(kind)
-                        .font(.caption2)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.orange.opacity(0.15))
-                        .foregroundStyle(.orange)
-                        .clipShape(Capsule())
+                    KindBadge(text: kind)
                 }
             }
 
-            // Latest output preview
             if let preview = agent.latestOutput, !preview.isEmpty {
                 Text(preview)
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+                    .font(.body(11))
+                    .foregroundStyle(Color.textTertiary)
                     .lineLimit(3)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(8)
-                    .background(Color(.systemGray6))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .padding(10)
+                    .background(Color.surfaceContainer)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
             }
         }
         .padding(14)
-        .background(Color(.systemGray6).opacity(agent.isActive ? 1 : 0.5))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14)
-                .strokeBorder(
-                    agent.isActive ? Color.orange.opacity(0.4) : Color.clear,
-                    lineWidth: 1
-                )
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 14))
-        .opacity(agent.isActive ? 1 : 0.6)
+        .vanguardCard(glow: agent.isActive)
+        .opacity(agent.isActive ? 1 : 0.5)
     }
 }
 
@@ -174,25 +166,26 @@ private struct StatusBadge: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            Circle()
-                .fill(color)
-                .frame(width: 6, height: 6)
-            Text(label)
-                .font(.caption2.bold())
+            StatusLED(color: color, pulsing: status != .idle)
+            Text(label.uppercased())
+                .font(.label(8, weight: .bold))
+                .tracking(1)
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
-        .background(color.opacity(0.15))
+        .foregroundStyle(color)
+        .background(color.opacity(0.1))
+        .overlay(Capsule().strokeBorder(color.opacity(0.2), lineWidth: 1))
         .clipShape(Capsule())
     }
 
     private var color: Color {
         switch status {
-        case .thinking: .orange
-        case .toolUse: .blue
-        case .streaming: .green
-        case .idle: .gray
-        case .error: .red
+        case .thinking: Color.ocPrimary
+        case .toolUse: Color.ocTertiary
+        case .streaming: Color.ocSuccess
+        case .idle: Color.textTertiary
+        case .error: Color.ocError
         }
     }
 
@@ -200,7 +193,7 @@ private struct StatusBadge: View {
         switch status {
         case .thinking: "Thinking"
         case .toolUse: "Tool Use"
-        case .streaming: "Streaming"
+        case .streaming: "Stream"
         case .idle: "Idle"
         case .error: "Error"
         }

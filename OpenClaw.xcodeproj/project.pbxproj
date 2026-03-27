@@ -28,6 +28,7 @@
 		B7510D22D505ABA1DCD5CF2B /* NodesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D7628938A2B9D73FF0C3D967 /* NodesView.swift */; };
 		C656116635BB46979FF4B96C /* GatewayProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = DBED32E2A92FDC67D37ED704 /* GatewayProtocol.swift */; };
 		C7A101C45F94F5D46789137F /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F8F974AB6515ADD60DFC217 /* RootView.swift */; };
+		E22631EEAE01403567FC2EFF /* DesignSystem.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB2E59C1FA951F14159AA225 /* DesignSystem.swift */; };
 		E570AA863F2FBA5A41449D34 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 6F457C0E8F94A9E8034587A0 /* Assets.xcassets */; };
 		ECB1BCB7B33477C940DAE100 /* ChatMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 997A31E63204EA2BD873081D /* ChatMessage.swift */; };
 		EDE41F57027852B8C1FE1617 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BB26699AEA006B2391A1240 /* AppState.swift */; };
@@ -58,6 +59,7 @@
 		80836724E23B1A525B7AD21B /* LiveAgentsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveAgentsView.swift; sourceTree = "<group>"; };
 		85CAD9DE732007259F8E0544 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		997A31E63204EA2BD873081D /* ChatMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatMessage.swift; sourceTree = "<group>"; };
+		AB2E59C1FA951F14159AA225 /* DesignSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DesignSystem.swift; sourceTree = "<group>"; };
 		AFADC59FC13B81EC561C1143 /* HealthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthView.swift; sourceTree = "<group>"; };
 		BC06ECAC2D277D036E64AAFD /* HapticFeedback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HapticFeedback.swift; sourceTree = "<group>"; };
 		BED65A6FB6C92D9D26C9F9BC /* MarkdownText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownText.swift; sourceTree = "<group>"; };
@@ -175,6 +177,7 @@
 		5CF99CC7788A07A5DC8E4FE2 /* Shared */ = {
 			isa = PBXGroup;
 			children = (
+				AB2E59C1FA951F14159AA225 /* DesignSystem.swift */,
 				82DEEEB3C88E045F92908460 /* Components */,
 				0C210DEF7FC1789C8A9232BB /* Extensions */,
 				6E311ED12AD82068479F981F /* Models */,
@@ -349,6 +352,7 @@
 				F331FD8BC42D6F5A79212F84 /* ConnectionConfig.swift in Sources */,
 				FBE0422D075EEC9B01111B54 /* ConnectionStatusDot.swift in Sources */,
 				477946A650448ACA59D8D5F1 /* CronView.swift in Sources */,
+				E22631EEAE01403567FC2EFF /* DesignSystem.swift in Sources */,
 				26F3963A2506E479B0B9A8E6 /* ExecApprovalBanner.swift in Sources */,
 				A6EF54BC4F4BF20FB0159FEE /* GatewayClient.swift in Sources */,
 				C656116635BB46979FF4B96C /* GatewayProtocol.swift in Sources */,

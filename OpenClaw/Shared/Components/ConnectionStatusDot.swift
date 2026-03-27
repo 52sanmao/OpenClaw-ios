@@ -4,31 +4,29 @@ struct ConnectionStatusDot: View {
     let state: GatewayClient.ConnectionState
 
     var body: some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(dotColor)
-                .frame(width: 8, height: 8)
-
-            Text(label)
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+        HStack(spacing: 5) {
+            StatusLED(color: dotColor, pulsing: state == .connected)
+            Text(label.uppercased())
+                .font(.label(9, weight: .bold))
+                .tracking(1)
+                .foregroundStyle(dotColor)
         }
     }
 
     private var dotColor: Color {
         switch state {
-        case .connected: .green
-        case .connecting: .yellow
-        case .disconnected: .gray
-        case .error: .red
+        case .connected: Color.ocSuccess
+        case .connecting: Color.ocTertiary
+        case .disconnected: Color.textTertiary
+        case .error: Color.ocError
         }
     }
 
     private var label: String {
         switch state {
-        case .connected: "Connected"
-        case .connecting: "Connecting"
-        case .disconnected: "Offline"
+        case .connected: "Live"
+        case .connecting: "Sync"
+        case .disconnected: "Off"
         case .error: "Error"
         }
     }

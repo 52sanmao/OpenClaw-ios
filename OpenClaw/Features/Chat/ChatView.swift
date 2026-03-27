@@ -8,8 +8,31 @@ struct ChatView: View {
     @FocusState private var isInputFocused: Bool
 
     var body: some View {
-        NavigationStack {
+        ZStack {
+            Color.surfaceBase.ignoresSafeArea()
+
             VStack(spacing: 0) {
+                // Nav bar
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        SectionLabel(text: "Active Session")
+                        Text("Chat")
+                            .font(.headline(24))
+                            .foregroundStyle(Color.textPrimary)
+                    }
+                    Spacer()
+                    HStack(spacing: 6) {
+                        StatusLED(color: gateway.connectionState == .connected ? Color.ocSuccess : Color.ocError, pulsing: gateway.connectionState == .connected)
+                        Text(gateway.connectionState == .connected ? "LIVE" : "OFFLINE")
+                            .font(.label(9, weight: .bold))
+                            .tracking(1.5)
+                            .foregroundStyle(gateway.connectionState == .connected ? Color.ocSuccess : Color.ocError)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+                .glassBar()
+
                 // Exec approval banner
                 ExecApprovalBanner(service: approvalService)
                     .animation(.spring(duration: 0.3), value: approvalService.pendingApprovals.count)
@@ -17,20 +40,18 @@ struct ChatView: View {
                 // Messages
                 ScrollViewReader { proxy in
                     ScrollView {
-                        LazyVStack(spacing: 12) {
+                        LazyVStack(spacing: 14) {
                             ForEach(chatService.messages) { msg in
-                                MessageBubble(message: msg)
+                                VanguardBubble(message: msg)
                                     .id(msg.id)
                             }
-
-                            // Streaming indicator
                             if chatService.isAgentTyping {
-                                StreamingBubble(text: chatService.currentStreamText)
+                                VanguardStreamingBubble(text: chatService.currentStreamText)
                                     .id("streaming")
                             }
                         }
                         .padding(.horizontal, 16)
-                        .padding(.vertical, 12)
+                        .padding(.vertical, 16)
                     }
                     .onChange(of: chatService.messages.count) {
                         withAnimation(.easeOut(duration: 0.2)) {
@@ -48,44 +69,40 @@ struct ChatView: View {
                     }
                 }
 
-                Divider()
-
                 // Input bar
                 HStack(spacing: 12) {
                     TextField("Message...", text: $inputText, axis: .vertical)
+                        .font(.body(14))
+                        .foregroundStyle(Color.textPrimary)
                         .textFieldStyle(.plain)
                         .lineLimit(1...6)
                         .focused($isInputFocused)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 10)
-                        .background(Color(.systemGray6))
-                        .clipShape(RoundedRectangle(cornerRadius: 20))
+                        .background(Color.surfaceContainerLow)
+                        .clipShape(RoundedRectangle(cornerRadius: 22))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 22)
+                                .strokeBorder(isInputFocused ? Color.ocPrimary.opacity(0.3) : Color.white.opacity(0.03), lineWidth: 1)
+                        )
                         .onSubmit { sendMessage() }
 
-                    Button {
-                        sendMessage()
-                    } label: {
-                        Image(systemName: "arrow.up.circle.fill")
-                            .font(.system(size: 32))
-                            .foregroundStyle(canSend ? Color.orange : Color.gray)
+                    Button { sendMessage() } label: {
+                        Image(systemName: "arrow.up")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(canSend ? .black : Color.textTertiary)
+                            .frame(width: 36, height: 36)
+                            .background(canSend ? Color.ocPrimary : Color.surfaceContainerHigh)
+                            .clipShape(Circle())
                     }
                     .disabled(!canSend)
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(.ultraThinMaterial)
-            }
-            .navigationTitle("Chat")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    ConnectionStatusDot(state: gateway.connectionState)
-                }
-            }
-            .task {
-                await chatService.loadHistory()
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .glassBar()
             }
         }
+        .task { await chatService.loadHistory() }
     }
 
     private var canSend: Bool {
@@ -97,21 +114,18 @@ struct ChatView: View {
         guard !text.isEmpty else { return }
         inputText = ""
         Haptics.impact(.light)
-
-        Task {
-            try? await chatService.send(text)
-        }
+        Task { try? await chatService.send(text) }
     }
 }
 
-// MARK: - Message Bubble
+// MARK: - Vanguard Message Bubble
 
-struct MessageBubble: View {
+struct VanguardBubble: View {
     let message: ChatMessage
 
     var body: some View {
         HStack {
-            if message.role == .user { Spacer(minLength: 60) }
+            if message.role == .user { Spacer(minLength: 48) }
 
             VStack(alignment: message.role == .user ? .trailing : .leading, spacing: 4) {
                 Group {
@@ -119,24 +133,28 @@ struct MessageBubble: View {
                         RichMarkdownView(content: message.content)
                     } else if message.role == .assistant {
                         MarkdownText(content: message.content)
-                            .font(.body)
+                            .font(.body(14))
                     } else {
                         Text(message.content)
-                            .font(.body)
+                            .font(.body(14))
                     }
                 }
-                .foregroundStyle(message.role == .user ? .white : .primary)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(bubbleColor)
+                .foregroundStyle(message.role == .user ? .black : Color.textSecondary)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(bubbleBackground)
                 .clipShape(RoundedRectangle(cornerRadius: 18))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18)
+                        .strokeBorder(bubbleBorder, lineWidth: 1)
+                )
 
                 Text(message.timestamp, style: .time)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                    .font(.label(9))
+                    .foregroundStyle(Color.textTertiary)
             }
 
-            if message.role != .user { Spacer(minLength: 60) }
+            if message.role != .user { Spacer(minLength: 48) }
         }
         .contextMenu {
             Button {
@@ -148,50 +166,59 @@ struct MessageBubble: View {
         }
     }
 
-    private var bubbleColor: Color {
+    private var bubbleBackground: Color {
         switch message.role {
-        case .user: .orange
-        case .assistant: Color(.systemGray5)
-        case .system: Color(.systemGray6)
+        case .user: Color.ocPrimary
+        case .assistant: .surfaceContainerLow
+        case .system: .surfaceContainer
+        }
+    }
+
+    private var bubbleBorder: Color {
+        switch message.role {
+        case .user: .clear
+        case .assistant: .white.opacity(0.03)
+        case .system: Color.ocError.opacity(0.2)
         }
     }
 }
 
 // MARK: - Streaming Bubble
 
-struct StreamingBubble: View {
+struct VanguardStreamingBubble: View {
     let text: String
     @State private var dotCount = 0
     private let timer = Timer.publish(every: 0.4, on: .main, in: .common).autoconnect()
 
     var body: some View {
         HStack {
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading) {
                 if text.isEmpty {
-                    HStack(spacing: 4) {
+                    HStack(spacing: 5) {
                         ForEach(0..<3, id: \.self) { i in
                             Circle()
-                                .fill(Color.orange.opacity(i <= dotCount ? 1 : 0.3))
-                                .frame(width: 8, height: 8)
+                                .fill(Color.ocPrimary.opacity(i <= dotCount ? 1 : 0.2))
+                                .frame(width: 6, height: 6)
                         }
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 12)
-                    .background(Color(.systemGray5))
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 14)
+                    .background(Color.surfaceContainerLow)
                     .clipShape(RoundedRectangle(cornerRadius: 18))
-                    .onReceive(timer) { _ in
-                        dotCount = (dotCount + 1) % 3
-                    }
+                    .ghostBorder()
+                    .onReceive(timer) { _ in dotCount = (dotCount + 1) % 3 }
                 } else {
                     MarkdownText(content: text)
-                        .font(.body)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
-                        .background(Color(.systemGray5))
+                        .font(.body(14))
+                        .foregroundStyle(Color.textSecondary)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 12)
+                        .background(Color.surfaceContainerLow)
                         .clipShape(RoundedRectangle(cornerRadius: 18))
+                        .ghostBorder()
                 }
             }
-            Spacer(minLength: 60)
+            Spacer(minLength: 48)
         }
     }
 }

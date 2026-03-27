@@ -12,7 +12,6 @@ final class ExecApprovalService: ObservableObject {
     }
 
     @Published var pendingApprovals: [ApprovalRequest] = []
-
     private let gateway: GatewayClient
 
     init(gateway: GatewayClient) {
@@ -26,15 +25,12 @@ final class ExecApprovalService: ObservableObject {
                 guard let dict = payload?.dict,
                       let requestId = dict["requestId"] as? String,
                       let command = dict["command"] as? String else { return }
-
                 let request = ApprovalRequest(
-                    id: requestId,
-                    command: command,
+                    id: requestId, command: command,
                     workdir: dict["workdir"] as? String,
                     sessionKey: dict["sessionKey"] as? String,
                     timestamp: Date()
                 )
-
                 self?.pendingApprovals.append(request)
                 Haptics.notification(.warning)
             }
@@ -44,10 +40,7 @@ final class ExecApprovalService: ObservableObject {
     func approve(_ request: ApprovalRequest) async {
         _ = try? await gateway.sendRequest(
             method: "exec.approval.resolve",
-            params: [
-                "requestId": request.id,
-                "approved": true
-            ]
+            params: ["requestId": request.id, "approved": true]
         )
         pendingApprovals.removeAll { $0.id == request.id }
         Haptics.notification(.success)
@@ -56,10 +49,7 @@ final class ExecApprovalService: ObservableObject {
     func reject(_ request: ApprovalRequest) async {
         _ = try? await gateway.sendRequest(
             method: "exec.approval.resolve",
-            params: [
-                "requestId": request.id,
-                "approved": false
-            ]
+            params: ["requestId": request.id, "approved": false]
         )
         pendingApprovals.removeAll { $0.id == request.id }
     }
@@ -71,70 +61,78 @@ struct ExecApprovalBanner: View {
 
     var body: some View {
         if let request = service.pendingApprovals.first {
-            VStack(spacing: 8) {
+            VStack(alignment: .leading, spacing: 10) {
                 HStack {
                     Image(systemName: "exclamationmark.shield.fill")
-                        .foregroundStyle(.yellow)
-                    Text("Approval Required")
-                        .font(.subheadline.bold())
+                        .foregroundStyle(Color.ocTertiary)
+                    Text("APPROVAL REQUIRED")
+                        .font(.label(10, weight: .bold))
+                        .tracking(1.5)
+                        .foregroundStyle(Color.ocTertiary)
                     Spacer()
                     Text(request.timestamp, style: .time)
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .font(.label(9))
+                        .foregroundStyle(Color.textTertiary)
                 }
 
                 // Command preview
                 Text(request.command)
-                    .font(.system(.caption, design: .monospaced))
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundStyle(Color.textSecondary)
                     .lineLimit(3)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(8)
-                    .background(Color(.systemGray6))
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .padding(10)
+                    .background(Color.surfaceContainerLow)
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
 
                 if let workdir = request.workdir {
                     Text("in \(workdir)")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .font(.label(10))
+                        .foregroundStyle(Color.textTertiary)
                 }
 
                 // Action buttons
-                HStack(spacing: 12) {
+                HStack(spacing: 10) {
                     Button {
                         Task { await service.reject(request) }
                     } label: {
-                        Text("Reject")
-                            .font(.subheadline.bold())
+                        Text("REJECT")
+                            .font(.label(11, weight: .bold))
+                            .tracking(1)
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 8)
-                            .background(Color(.systemGray5))
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .padding(.vertical, 10)
+                            .background(Color.surfaceContainerHigh)
+                            .foregroundStyle(Color.textSecondary)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
                     }
 
                     Button {
                         Task { await service.approve(request) }
                     } label: {
-                        Text("Approve")
-                            .font(.subheadline.bold())
+                        Text("APPROVE")
+                            .font(.label(11, weight: .bold))
+                            .tracking(1)
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 8)
-                            .background(Color.green)
-                            .foregroundStyle(.white)
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .padding(.vertical, 10)
+                            .background(Color.ocSuccess)
+                            .foregroundStyle(.black)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
                     }
                 }
 
                 if service.pendingApprovals.count > 1 {
                     Text("+\(service.pendingApprovals.count - 1) more pending")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                        .font(.label(9))
+                        .foregroundStyle(Color.textTertiary)
                 }
             }
-            .padding(12)
-            .background(.ultraThinMaterial)
-            .clipShape(RoundedRectangle(cornerRadius: 14))
-            .shadow(color: .black.opacity(0.1), radius: 8, y: 2)
+            .padding(14)
+            .background(Color.surfaceContainer)
+            .clipShape(RoundedRectangle(cornerRadius: 18))
+            .overlay(
+                RoundedRectangle(cornerRadius: 18)
+                    .strokeBorder(Color.ocTertiary.opacity(0.2), lineWidth: 1)
+            )
             .padding(.horizontal, 12)
             .transition(.move(edge: .top).combined(with: .opacity))
         }
