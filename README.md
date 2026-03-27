@@ -6,9 +6,18 @@
 
 Native iOS client for [OpenClaw](https://github.com/openclaw/openclaw) -- talk to your AI agent from anywhere.
 
+## Screenshots
+
+<p align="center">
+  <img src="assets/screenshot-chat.png" alt="Chat" width="280">
+  &nbsp;&nbsp;
+  <img src="assets/screenshot-agents.png" alt="Agents" width="280">
+</p>
+
 ## Features
 
 - **Chat** -- Full conversational UI with streaming responses, markdown rendering, and code blocks
+- **Live Agents** -- Real-time monitoring of active agent sessions with status indicators
 - **Sessions** -- Browse and manage active agent sessions
 - **Cron Jobs** -- View, toggle, and trigger scheduled jobs
 - **Nodes** -- See paired devices and their capabilities
@@ -53,10 +62,11 @@ OpenClaw/
     Protocol/       -- Gateway protocol types, AnyCodable
     Storage/        -- Keychain helper
   Features/
+    Agents/         -- Live agent monitoring
     Chat/           -- Chat UI, connect screen
-    Sessions/       -- Session list and details
     Cron/           -- Cron job management
     Nodes/          -- Paired device browser
+    Sessions/       -- Session list and details
     Settings/       -- Connection info, links
   Shared/
     Components/     -- Reusable UI (status dot, markdown renderer)
