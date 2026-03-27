@@ -20,6 +20,7 @@
 		9C9AD2073AC462C803E10694 /* HapticFeedback.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC06ECAC2D277D036E64AAFD /* HapticFeedback.swift */; };
 		A5E697EB3FD6EF8F37C6A8EE /* OpenClawApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52E2B757311CD1138DA2C284 /* OpenClawApp.swift */; };
 		A6EF54BC4F4BF20FB0159FEE /* GatewayClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31D38CE4149B0461C7615B32 /* GatewayClient.swift */; };
+		A73B6BA68A6F336198036A9A /* LiveAgentsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80836724E23B1A525B7AD21B /* LiveAgentsView.swift */; };
 		AA0BB2A3D78CB74E1C2B87C9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AF8351C74B880DD94F66ED2 /* AppDelegate.swift */; };
 		AB749BD319095ACF017E3456 /* NotificationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43FA8CB22394080D6EF414B4 /* NotificationService.swift */; };
 		B0D8F4002351078F662D8CF8 /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D01B789D50405A2169346D0 /* KeychainHelper.swift */; };
@@ -54,6 +55,7 @@
 		6F457C0E8F94A9E8034587A0 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		7BB26699AEA006B2391A1240 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		7F218C37253FF4D7D9DF33DC /* SessionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionsView.swift; sourceTree = "<group>"; };
+		80836724E23B1A525B7AD21B /* LiveAgentsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveAgentsView.swift; sourceTree = "<group>"; };
 		85CAD9DE732007259F8E0544 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		997A31E63204EA2BD873081D /* ChatMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatMessage.swift; sourceTree = "<group>"; };
 		AFADC59FC13B81EC561C1143 /* HealthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthView.swift; sourceTree = "<group>"; };
@@ -72,6 +74,7 @@
 		005AECC00326B2ABBCAD4C7B /* Features */ = {
 			isa = PBXGroup;
 			children = (
+				F5C886516F039A7C75BFECC4 /* Agents */,
 				4E3FEE781CB1F6BE6E9AD1BB /* Chat */,
 				25E8F743C45537B6F52323A8 /* Cron */,
 				840BD2917DBE098879A7CA18 /* Nodes */,
@@ -256,6 +259,14 @@
 			path = Storage;
 			sourceTree = "<group>";
 		};
+		F5C886516F039A7C75BFECC4 /* Agents */ = {
+			isa = PBXGroup;
+			children = (
+				80836724E23B1A525B7AD21B /* LiveAgentsView.swift */,
+			);
+			path = Agents;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -344,6 +355,7 @@
 				9C9AD2073AC462C803E10694 /* HapticFeedback.swift in Sources */,
 				77730B69761344FCE6E2A998 /* HealthView.swift in Sources */,
 				B0D8F4002351078F662D8CF8 /* KeychainHelper.swift in Sources */,
+				A73B6BA68A6F336198036A9A /* LiveAgentsView.swift in Sources */,
 				FFFB9788966286FFD624A963 /* MarkdownText.swift in Sources */,
 				B7510D22D505ABA1DCD5CF2B /* NodesView.swift in Sources */,
 				AB749BD319095ACF017E3456 /* NotificationService.swift in Sources */,

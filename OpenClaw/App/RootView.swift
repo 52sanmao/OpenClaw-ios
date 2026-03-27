@@ -25,6 +25,10 @@ struct MainTabView: View {
                 .tabItem { Label("Chat", systemImage: "bubble.left.and.bubble.right.fill") }
                 .tag(AppState.Tab.chat)
 
+            LiveAgentsView()
+                .tabItem { Label("Agents", systemImage: "bolt.fill") }
+                .tag(AppState.Tab.agents)
+
             SessionsView()
                 .tabItem { Label("Sessions", systemImage: "list.bullet.rectangle.portrait.fill") }
                 .tag(AppState.Tab.sessions)
