@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/ManasVardhan/OpenClaw-iOS/main/assets/banner.png" alt="OpenClaw iOS" width="100%">
+</p>
+
 # OpenClaw iOS
 
 Native iOS client for [OpenClaw](https://github.com/openclaw/openclaw) -- talk to your AI agent from anywhere.
