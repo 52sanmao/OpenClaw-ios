@@ -27,7 +27,7 @@ struct RichMarkdownView: View {
                 switch block {
                 case .text(let text):
                     MarkdownText(content: text)
-                        .font(.body)
+                        .font(.body(14))
                 case .code(let lang, let code):
                     CodeBlockView(language: lang, code: code)
                 }
@@ -46,7 +46,6 @@ struct RichMarkdownView: View {
         let codePattern = "```"
 
         while let startRange = remaining.range(of: codePattern) {
-            // Text before code block
             let textBefore = String(remaining[remaining.startIndex..<startRange.lowerBound])
             if !textBefore.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 blocks.append(.text(textBefore))
@@ -54,7 +53,6 @@ struct RichMarkdownView: View {
 
             remaining = String(remaining[startRange.upperBound...])
 
-            // Extract language hint (first line)
             var lang: String? = nil
             if let newline = remaining.firstIndex(of: "\n") {
                 let firstLine = String(remaining[remaining.startIndex..<newline]).trimmingCharacters(in: .whitespaces)
@@ -64,13 +62,11 @@ struct RichMarkdownView: View {
                 }
             }
 
-            // Find closing ```
             if let endRange = remaining.range(of: codePattern) {
                 let code = String(remaining[remaining.startIndex..<endRange.lowerBound])
                 blocks.append(.code(lang, code.trimmingCharacters(in: .newlines)))
                 remaining = String(remaining[endRange.upperBound...])
             } else {
-                // Unclosed code block
                 blocks.append(.code(lang, remaining))
                 remaining = ""
             }
@@ -84,6 +80,7 @@ struct RichMarkdownView: View {
     }
 }
 
+/// Vanguard-styled code block with copy button.
 struct CodeBlockView: View {
     let language: String?
     let code: String
@@ -91,12 +88,13 @@ struct CodeBlockView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header bar
+            // Header
             HStack {
                 if let language {
-                    Text(language)
-                        .font(.caption.monospaced())
-                        .foregroundStyle(.secondary)
+                    Text(language.uppercased())
+                        .font(.label(9, weight: .bold))
+                        .tracking(1)
+                        .foregroundStyle(Color.textTertiary)
                 }
                 Spacer()
                 Button {
@@ -108,24 +106,33 @@ struct CodeBlockView: View {
                         copied = false
                     }
                 } label: {
-                    Label(copied ? "Copied" : "Copy", systemImage: copied ? "checkmark" : "doc.on.doc")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                    HStack(spacing: 4) {
+                        Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                        Text(copied ? "COPIED" : "COPY")
+                            .font(.label(9, weight: .bold))
+                            .tracking(1)
+                    }
+                    .foregroundStyle(copied ? Color.ocSuccess : Color.textTertiary)
                 }
             }
             .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-            .background(Color(.systemGray5))
+            .padding(.vertical, 8)
+            .background(Color.surfaceContainerHighest)
 
-            // Code content
+            // Code
             ScrollView(.horizontal, showsIndicators: false) {
                 Text(code)
-                    .font(.system(.caption, design: .monospaced))
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundStyle(Color.textSecondary)
                     .textSelection(.enabled)
                     .padding(12)
             }
+            .background(Color.surfaceContainer)
         }
-        .background(Color(.systemGray6))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(Color.white.opacity(0.03), lineWidth: 1)
+        )
     }
 }

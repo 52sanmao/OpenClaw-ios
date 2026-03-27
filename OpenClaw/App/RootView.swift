@@ -19,32 +19,76 @@ struct RootView: View {
 struct MainTabView: View {
     @EnvironmentObject var appState: AppState
 
+    init() {
+        // Glassmorphic tab bar
+        let appearance = UITabBarAppearance()
+        appearance.configureWithTransparentBackground()
+        appearance.backgroundColor = UIColor(red: 0, green: 0, blue: 0, alpha: 0.85)
+        appearance.backgroundEffect = UIBlurEffect(style: .systemThinMaterialDark)
+
+        // Normal state
+        let normal = UITabBarItemAppearance()
+        normal.normal.iconColor = UIColor(white: 0.45, alpha: 1)
+        normal.normal.titleTextAttributes = [
+            .foregroundColor: UIColor(white: 0.45, alpha: 1),
+            .font: UIFont.systemFont(ofSize: 10, weight: .bold),
+            .kern: 1.5
+        ]
+
+        // Selected state
+        normal.selected.iconColor = UIColor(red: 1, green: 0.57, blue: 0.35, alpha: 1)
+        normal.selected.titleTextAttributes = [
+            .foregroundColor: UIColor(red: 1, green: 0.57, blue: 0.35, alpha: 1),
+            .font: UIFont.systemFont(ofSize: 10, weight: .bold),
+            .kern: 1.5
+        ]
+
+        appearance.stackedLayoutAppearance = normal
+        appearance.inlineLayoutAppearance = normal
+        appearance.compactInlineLayoutAppearance = normal
+
+        UITabBar.appearance().standardAppearance = appearance
+        UITabBar.appearance().scrollEdgeAppearance = appearance
+    }
+
     var body: some View {
         TabView(selection: $appState.selectedTab) {
-            ChatView()
-                .tabItem { Label("Chat", systemImage: "bubble.left.and.bubble.right.fill") }
-                .tag(AppState.Tab.chat)
+            NavigationStack {
+                ChatView()
+            }
+            .tabItem { Label("CHAT", systemImage: "bubble.left.and.bubble.right.fill") }
+            .tag(AppState.Tab.chat)
 
-            LiveAgentsView()
-                .tabItem { Label("Agents", systemImage: "bolt.fill") }
-                .tag(AppState.Tab.agents)
+            NavigationStack {
+                LiveAgentsView()
+            }
+            .tabItem { Label("AGENTS", systemImage: "bolt.fill") }
+            .tag(AppState.Tab.agents)
 
-            SessionsView()
-                .tabItem { Label("Sessions", systemImage: "list.bullet.rectangle.portrait.fill") }
-                .tag(AppState.Tab.sessions)
+            NavigationStack {
+                SessionsView()
+            }
+            .tabItem { Label("SESSIONS", systemImage: "list.bullet.rectangle.portrait.fill") }
+            .tag(AppState.Tab.sessions)
 
-            CronView()
-                .tabItem { Label("Cron", systemImage: "clock.fill") }
-                .tag(AppState.Tab.cron)
+            NavigationStack {
+                CronView()
+            }
+            .tabItem { Label("CRON", systemImage: "clock.fill") }
+            .tag(AppState.Tab.cron)
 
-            NodesView()
-                .tabItem { Label("Nodes", systemImage: "antenna.radiowaves.left.and.right") }
-                .tag(AppState.Tab.nodes)
+            NavigationStack {
+                NodesView()
+            }
+            .tabItem { Label("NODES", systemImage: "antenna.radiowaves.left.and.right") }
+            .tag(AppState.Tab.nodes)
 
-            SettingsView()
-                .tabItem { Label("Settings", systemImage: "gearshape.fill") }
-                .tag(AppState.Tab.settings)
+            NavigationStack {
+                SettingsView()
+            }
+            .tabItem { Label("SETTINGS", systemImage: "gearshape.fill") }
+            .tag(AppState.Tab.settings)
         }
-        .tint(.orange)
+        .tint(.ocPrimary)
     }
 }
