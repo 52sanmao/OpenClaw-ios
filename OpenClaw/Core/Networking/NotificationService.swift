@@ -37,10 +37,10 @@ final class NotificationService: NSObject, ObservableObject {
         // Reply action (text input from notification)
         let replyAction = UNTextInputNotificationAction(
             identifier: Self.replyAction,
-            title: "Reply",
+            title: "回复",
             options: [],
-            textInputButtonTitle: "Send",
-            textInputPlaceholder: "Type a reply..."
+            textInputButtonTitle: "发送",
+            textInputPlaceholder: "输入回复..."
         )
 
         // Message category with reply
@@ -54,12 +54,12 @@ final class NotificationService: NSObject, ObservableObject {
         // Approval actions
         let approveAction = UNNotificationAction(
             identifier: Self.approveAction,
-            title: "Approve",
+            title: "批准",
             options: [.authenticationRequired]
         )
         let rejectAction = UNNotificationAction(
             identifier: Self.rejectAction,
-            title: "Reject",
+            title: "拒绝",
             options: [.destructive]
         )
 
@@ -119,7 +119,7 @@ final class NotificationService: NSObject, ObservableObject {
                 let dict = payload?.dict
                 let text = dict?["text"] as? String
                     ?? dict?["message"] as? String
-                    ?? "New message from your agent"
+                    ?? "代理发来新消息"
                 let sessionKey = dict?["sessionKey"] as? String
 
                 self.showMessageNotification(text: text, sessionKey: sessionKey)
@@ -133,7 +133,7 @@ final class NotificationService: NSObject, ObservableObject {
 
                 let dict = payload?.dict
                 let requestId = dict?["requestId"] as? String ?? ""
-                let command = dict?["command"] as? String ?? "Unknown command"
+                let command = dict?["command"] as? String ?? "未知命令"
 
                 self.showApprovalNotification(requestId: requestId, command: command)
             }
@@ -144,7 +144,7 @@ final class NotificationService: NSObject, ObservableObject {
 
     private func showMessageNotification(text: String, sessionKey: String?) {
         let content = UNMutableNotificationContent()
-        content.title = "OpenClaw"
+        content.title = "开放爪"
         content.body = String(text.prefix(256))
         content.sound = .default
         content.categoryIdentifier = Self.messageCategory
@@ -163,7 +163,7 @@ final class NotificationService: NSObject, ObservableObject {
 
     private func showApprovalNotification(requestId: String, command: String) {
         let content = UNMutableNotificationContent()
-        content.title = "Approval Required"
+        content.title = "需要审批"
         content.body = command.prefix(200).description
         content.sound = .default
         content.categoryIdentifier = Self.approvalCategory

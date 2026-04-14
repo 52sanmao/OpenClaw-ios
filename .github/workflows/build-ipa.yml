@@ -1,0 +1,65 @@
+name: Build IPA
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Build for iOS (Archive)
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project "OpenClaw.xcodeproj" \
+            -scheme "OpenClaw" \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/OpenClaw.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            archive
+
+      - name: Create IPA from xcarchive
+        run: |
+          set -euo pipefail
+          APP_PATH=$(find "$RUNNER_TEMP/OpenClaw.xcarchive/Products" -name "*.app" -type d | head -1)
+          if [ -z "$APP_PATH" ]; then
+            echo "No .app found, trying alternate build..."
+            xcodebuild \
+              -project "OpenClaw.xcodeproj" \
+              -scheme "OpenClaw" \
+              -configuration Release \
+              -sdk iphoneos \
+              -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+              CODE_SIGNING_ALLOWED=NO \
+              CODE_SIGN_IDENTITY="" \
+              CODE_SIGNING_REQUIRED=NO \
+              build
+            APP_PATH=$(find "$RUNNER_TEMP/DerivedData" -name "*.app" -type d | head -1)
+          fi
+          mkdir -p "$RUNNER_TEMP/Payload"
+          cp -R "$APP_PATH" "$RUNNER_TEMP/Payload/"
+          cd "$RUNNER_TEMP"
+          zip -r "OpenClaw-开放爪.ipa" Payload
+          echo "IPA created at $RUNNER_TEMP/OpenClaw-开放爪.ipa"
+
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenClaw-开放爪-IPA
+          path: ${{ runner.temp }}/OpenClaw-开放爪.ipa
+          retention-days: 30

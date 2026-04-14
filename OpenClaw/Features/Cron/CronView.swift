@@ -12,8 +12,8 @@ struct CronView: View {
 
             VStack(alignment: .leading, spacing: 0) {
                 VStack(alignment: .leading, spacing: 4) {
-                    SectionLabel(text: "Scheduled Tasks")
-                    Text("Cron Jobs")
+                    SectionLabel(text: "定时任务列表")
+                    Text("定时任务")
                         .font(.headline(28))
                         .foregroundStyle(Color.textPrimary)
                 }
@@ -31,7 +31,7 @@ struct CronView: View {
                         Image(systemName: "clock")
                             .font(.system(size: 40))
                             .foregroundStyle(Color.textTertiary)
-                        Text("NO CRON JOBS")
+                        Text("暂无定时任务")
                             .font(.label(11, weight: .bold))
                             .tracking(2)
                             .foregroundStyle(Color.textTertiary)

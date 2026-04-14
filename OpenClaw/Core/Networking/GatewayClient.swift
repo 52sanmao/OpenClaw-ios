@@ -84,7 +84,7 @@ final class GatewayClient: ObservableObject {
             NSLog("[GW] Got challenge nonce=\(nonce.prefix(8))...")
         } catch {
             NSLog("[GW] Challenge wait failed: \(error)")
-            connectionState = .error("No challenge from gateway: \(error.localizedDescription)")
+            connectionState = .error("未收到网关质询: \(error.localizedDescription)")
             throw error
         }
 
@@ -110,7 +110,7 @@ final class GatewayClient: ObservableObject {
         NSLog("[GW] Connect response ok=\(response.ok)")
 
         guard response.ok else {
-            let msg = response.error?.message ?? "Connection rejected"
+            let msg = response.error?.message ?? "连接被拒绝"
             connectionState = .error(msg)
             throw GatewayError.connectionRejected(msg)
         }
@@ -319,7 +319,7 @@ final class GatewayClient: ObservableObject {
                 }
             }
             // Give up after 5 attempts
-            connectionState = .error("Reconnection failed")
+            connectionState = .error("重连失败")
         }
     }
 }
@@ -335,11 +335,11 @@ enum GatewayError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .noConfig: "No gateway configuration found"
-        case .notConnected: "Not connected to gateway"
-        case .connectionRejected(let msg): "Connection rejected: \(msg)"
-        case .timeout: "Request timed out"
-        case .invalidResponse: "Invalid response from gateway"
+        case .noConfig: "未找到网关配置"
+        case .notConnected: "未连接到网关"
+        case .connectionRejected(let msg): "连接被拒绝: \(msg)"
+        case .timeout: "请求超时"
+        case .invalidResponse: "网关响应无效"
         }
     }
 }

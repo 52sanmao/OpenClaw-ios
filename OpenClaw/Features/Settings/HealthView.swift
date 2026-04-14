@@ -14,12 +14,12 @@ struct HealthView: View {
                 VStack(alignment: .leading, spacing: 24) {
                     // Gateway
                     VStack(alignment: .leading, spacing: 12) {
-                        SectionLabel(text: "Gateway")
+                        SectionLabel(text: "网关")
 
                         VStack(spacing: 0) {
-                            SettingsRow(label: "VERSION", value: gateway.serverVersion)
-                            SettingsRow(label: "HOST", value: gateway.serverHost)
-                            SettingsRow(label: "STATUS", value: "Running", valueColor: Color.ocSuccess)
+                            SettingsRow(label: "版本", value: gateway.serverVersion)
+                            SettingsRow(label: "主机", value: gateway.serverHost)
+                            SettingsRow(label: "状态", value: "运行中", valueColor: Color.ocSuccess)
                         }
                         .vanguardCard()
                     }
@@ -27,11 +27,11 @@ struct HealthView: View {
                     // Channels
                     if !channelStatuses.isEmpty {
                         VStack(alignment: .leading, spacing: 12) {
-                            SectionLabel(text: "Channels")
+                            SectionLabel(text: "频道")
 
                             VStack(spacing: 8) {
                                 ForEach(Array(channelStatuses.enumerated()), id: \.offset) { _, channel in
-                                    let name = channel["channel"] as? String ?? "Unknown"
+                                    let name = channel["channel"] as? String ?? "未知"
                                     let status = channel["status"] as? String ?? "unknown"
                                     let connected = status == "connected" || status == "ready"
 
@@ -60,7 +60,7 @@ struct HealthView: View {
 
                     // Usage
                     VStack(alignment: .leading, spacing: 12) {
-                        SectionLabel(text: "Usage")
+                        SectionLabel(text: "使用量")
 
                         NavigationLink {
                             UsageView()
@@ -68,7 +68,7 @@ struct HealthView: View {
                             HStack {
                                 Image(systemName: "chart.bar.fill")
                                     .foregroundStyle(Color.ocPrimary)
-                                Text("Session Usage")
+                                Text("会话使用量")
                                     .font(.body(14, weight: .medium))
                                     .foregroundStyle(Color.textPrimary)
                                 Spacer()
@@ -87,7 +87,7 @@ struct HealthView: View {
                 .padding(.top, 16)
             }
         }
-        .navigationTitle("Health")
+        .navigationTitle("健康状态")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button { Task { await loadHealth() } } label: {
@@ -132,7 +132,7 @@ struct UsageView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 12) {
-                    SectionLabel(text: "Token Usage")
+                    SectionLabel(text: "令牌使用量")
                         .padding(.horizontal, 20)
                         .padding(.top, 16)
 
@@ -141,7 +141,7 @@ struct UsageView: View {
                             Image(systemName: "chart.bar")
                                 .font(.system(size: 40))
                                 .foregroundStyle(Color.textTertiary)
-                            Text("NO USAGE DATA")
+                            Text("暂无使用数据")
                                 .font(.label(11, weight: .bold))
                                 .tracking(2)
                                 .foregroundStyle(Color.textTertiary)
@@ -151,7 +151,7 @@ struct UsageView: View {
                     } else {
                         LazyVStack(spacing: 8) {
                             ForEach(Array(usageData.enumerated()), id: \.offset) { _, session in
-                                let key = session["key"] as? String ?? "Unknown"
+                                let key = session["key"] as? String ?? "未知"
                                 let input = session["inputTokens"] as? Int ?? 0
                                 let output = session["outputTokens"] as? Int ?? 0
 
@@ -187,7 +187,7 @@ struct UsageView: View {
                 }
             }
         }
-        .navigationTitle("Usage")
+        .navigationTitle("使用量")
         .task {
             if let response = try? await gateway.sendRequest(method: "sessions.usage", params: ["limit": 20]),
                response.ok,

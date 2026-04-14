@@ -13,8 +13,8 @@ struct SessionsView: View {
             VStack(alignment: .leading, spacing: 0) {
                 // Header
                 VStack(alignment: .leading, spacing: 4) {
-                    SectionLabel(text: "Active Protocol")
-                    Text("Sessions")
+                    SectionLabel(text: "活跃协议")
+                    Text("会话")
                         .font(.headline(28))
                         .foregroundStyle(Color.textPrimary)
                 }
@@ -32,7 +32,7 @@ struct SessionsView: View {
                         Image(systemName: "list.bullet.rectangle.portrait")
                             .font(.system(size: 40))
                             .foregroundStyle(Color.textTertiary)
-                        Text("NO ACTIVE SESSIONS")
+                        Text("暂无活跃会话")
                             .font(.label(11, weight: .bold))
                             .tracking(2)
                             .foregroundStyle(Color.textTertiary)

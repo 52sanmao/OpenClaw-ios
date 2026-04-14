@@ -108,7 +108,7 @@ struct CodeBlockView: View {
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: copied ? "checkmark" : "doc.on.doc")
-                        Text(copied ? "COPIED" : "COPY")
+                        Text(copied ? "已复制" : "复制")
                             .font(.label(9, weight: .bold))
                             .tracking(1)
                     }

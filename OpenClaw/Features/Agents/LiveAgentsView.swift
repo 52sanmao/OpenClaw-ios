@@ -14,8 +14,8 @@ struct LiveAgentsView: View {
                 // Header
                 HStack(alignment: .bottom) {
                     VStack(alignment: .leading, spacing: 4) {
-                        SectionLabel(text: "Live Monitoring")
-                        Text("Agents")
+                        SectionLabel(text: "实时监控")
+                        Text("代理")
                             .font(.headline(28))
                             .foregroundStyle(Color.textPrimary)
                     }
@@ -25,7 +25,7 @@ struct LiveAgentsView: View {
                         HStack(spacing: 8) {
                             HStack(spacing: 4) {
                                 StatusLED(color: active > 0 ? Color.ocPrimary : Color.textTertiary, pulsing: active > 0)
-                                Text("\(active) ACTIVE")
+                                Text("\(active) 活跃")
                                     .font(.label(9, weight: .bold))
                                     .tracking(1)
                                     .foregroundStyle(active > 0 ? Color.ocPrimary : Color.textTertiary)
@@ -47,7 +47,7 @@ struct LiveAgentsView: View {
                         Image(systemName: "bolt.slash")
                             .font(.system(size: 40))
                             .foregroundStyle(Color.textTertiary)
-                        Text("NO ACTIVE AGENTS")
+                        Text("暂无活跃代理")
                             .font(.label(11, weight: .bold))
                             .tracking(2)
                             .foregroundStyle(Color.textTertiary)
@@ -191,11 +191,11 @@ private struct StatusBadge: View {
 
     private var label: String {
         switch status {
-        case .thinking: "Thinking"
-        case .toolUse: "Tool Use"
-        case .streaming: "Stream"
-        case .idle: "Idle"
-        case .error: "Error"
+        case .thinking: "思考中"
+        case .toolUse: "工具使用"
+        case .streaming: "流式传输"
+        case .idle: "空闲"
+        case .error: "错误"
         }
     }
 }

@@ -24,11 +24,11 @@ struct ConnectView: View {
                             .foregroundStyle(Color.ocPrimary)
                             .shadow(color: Color.ocPrimary.opacity(0.3), radius: 12)
 
-                        Text("OpenClaw")
+                        Text("开放爪")
                             .font(.headline(32))
                             .foregroundStyle(Color.textPrimary)
 
-                        Text("GATEWAY CONNECTION")
+                        Text("网关连接")
                             .font(.label(10, weight: .bold))
                             .tracking(2)
                             .foregroundStyle(Color.textTertiary)
@@ -38,7 +38,7 @@ struct ConnectView: View {
                     // Discovered gateways
                     if !discovery.gateways.isEmpty {
                         VStack(alignment: .leading, spacing: 10) {
-                            SectionLabel(text: "Discovered on Network")
+                            SectionLabel(text: "已发现网络")
 
                             ForEach(discovery.gateways) { gw in
                                 Button {
@@ -73,7 +73,7 @@ struct ConnectView: View {
                     } else if discovery.isSearching {
                         HStack(spacing: 8) {
                             ProgressView().tint(.ocPrimary)
-                            Text("SCANNING NETWORK")
+                            Text("正在扫描网络")
                                 .font(.label(10, weight: .bold))
                                 .tracking(2)
                                 .foregroundStyle(Color.textTertiary)
@@ -82,22 +82,22 @@ struct ConnectView: View {
 
                     // Connection form
                     VStack(alignment: .leading, spacing: 16) {
-                        SectionLabel(text: "Manual Connection")
+                        SectionLabel(text: "手动连接")
 
-                        VanguardField(title: "HOST", placeholder: "192.168.1.10 or mybox.tail...", text: $host)
+                        VanguardField(title: "主机", placeholder: "192.168.1.10 or mybox.tail...", text: $host)
                             .textInputAutocapitalization(.never)
                             .keyboardType(.URL)
 
-                        VanguardField(title: "PORT", placeholder: "18789", text: $port)
+                        VanguardField(title: "端口", placeholder: "18789", text: $port)
                             .keyboardType(.numberPad)
 
-                        VanguardField(title: "TOKEN", placeholder: "Gateway auth token", text: $token, isSecure: true)
+                        VanguardField(title: "令牌", placeholder: "网关认证令牌", text: $token, isSecure: true)
 
                         HStack {
                             Image(systemName: "lock.fill")
                                 .font(.caption)
                                 .foregroundStyle(Color.textTertiary)
-                            Text("USE TLS (WSS://)")
+                            Text("使用TLS (WSS://)")
                                 .font(.label(11, weight: .medium))
                                 .tracking(1)
                                 .foregroundStyle(Color.textSecondary)
@@ -125,7 +125,7 @@ struct ConnectView: View {
                             if isConnecting {
                                 ProgressView().tint(.black)
                             }
-                            Text(isConnecting ? "CONNECTING" : "CONNECT")
+                            Text(isConnecting ? "连接中" : "连接")
                                 .font(.label(14, weight: .bold))
                                 .tracking(2)
                         }
@@ -145,7 +145,7 @@ struct ConnectView: View {
                     Button {} label: {
                         HStack(spacing: 6) {
                             Image(systemName: "qrcode.viewfinder")
-                            Text("SCAN QR CODE")
+                            Text("扫描二维码")
                                 .font(.label(11, weight: .medium))
                                 .tracking(1.5)
                         }
@@ -184,7 +184,7 @@ struct ConnectView: View {
 
     private func connect() {
         guard let portNum = Int(port) else {
-            errorMessage = "Invalid port number"
+            errorMessage = "端口号无效"
             return
         }
         let config = ConnectionConfig(

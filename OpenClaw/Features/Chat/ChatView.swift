@@ -15,15 +15,15 @@ struct ChatView: View {
                 // Nav bar
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
-                        SectionLabel(text: "Active Session")
-                        Text("Chat")
+                        SectionLabel(text: "当前会话")
+                        Text("聊天")
                             .font(.headline(24))
                             .foregroundStyle(Color.textPrimary)
                     }
                     Spacer()
                     HStack(spacing: 6) {
                         StatusLED(color: gateway.connectionState == .connected ? Color.ocSuccess : Color.ocError, pulsing: gateway.connectionState == .connected)
-                        Text(gateway.connectionState == .connected ? "LIVE" : "OFFLINE")
+                        Text(gateway.connectionState == .connected ? "在线" : "离线")
                             .font(.label(9, weight: .bold))
                             .tracking(1.5)
                             .foregroundStyle(gateway.connectionState == .connected ? Color.ocSuccess : Color.ocError)
@@ -71,7 +71,7 @@ struct ChatView: View {
 
                 // Input bar
                 HStack(spacing: 12) {
-                    TextField("Message...", text: $inputText, axis: .vertical)
+                    TextField("输入消息...", text: $inputText, axis: .vertical)
                         .font(.body(14))
                         .foregroundStyle(Color.textPrimary)
                         .textFieldStyle(.plain)
@@ -161,7 +161,7 @@ struct VanguardBubble: View {
                 UIPasteboard.general.string = message.content
                 Haptics.notification(.success)
             } label: {
-                Label("Copy", systemImage: "doc.on.doc")
+                Label("复制", systemImage: "doc.on.doc")
             }
         }
     }

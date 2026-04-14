@@ -13,8 +13,8 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 24) {
                     // Header
                     VStack(alignment: .leading, spacing: 4) {
-                        SectionLabel(text: "Configuration")
-                        Text("Settings")
+                        SectionLabel(text: "配置")
+                        Text("设置")
                             .font(.headline(28))
                             .foregroundStyle(Color.textPrimary)
                     }
@@ -22,19 +22,19 @@ struct SettingsView: View {
 
                     // Notifications
                     VStack(alignment: .leading, spacing: 12) {
-                        SectionLabel(text: "Notifications")
+                        SectionLabel(text: "通知")
 
                         HStack {
                             Image(systemName: "bell.fill")
                                 .foregroundStyle(Color.ocPrimary)
-                            Text("Push Notifications")
+                            Text("推送通知")
                                 .font(.body(14, weight: .medium))
                                 .foregroundStyle(Color.textPrimary)
                             Spacer()
                             if notifications.isAuthorized {
                                 HStack(spacing: 4) {
                                     StatusLED(color: Color.ocSuccess)
-                                    Text("ENABLED")
+                                    Text("已启用")
                                         .font(.label(9, weight: .bold))
                                         .tracking(1)
                                         .foregroundStyle(Color.ocSuccess)
@@ -43,7 +43,7 @@ struct SettingsView: View {
                                 Button {
                                     notifications.requestPermission()
                                 } label: {
-                                    Text("ENABLE")
+                                    Text("启用")
                                         .font(.label(10, weight: .bold))
                                         .tracking(1)
                                         .foregroundStyle(Color.ocPrimary)
@@ -56,19 +56,19 @@ struct SettingsView: View {
 
                     // Connection
                     VStack(alignment: .leading, spacing: 12) {
-                        SectionLabel(text: "Gateway Connection")
+                        SectionLabel(text: "网关连接")
 
                         VStack(spacing: 0) {
                             if let config = ConnectionStore.load() {
-                                SettingsRow(label: "HOST", value: config.displayName)
-                                SettingsRow(label: "TLS", value: config.useTLS ? "Enabled" : "Disabled")
+                                SettingsRow(label: "主机", value: config.displayName)
+                                SettingsRow(label: "TLS", value: config.useTLS ? "已启用" : "已禁用")
                             }
-                            SettingsRow(label: "STATUS", value: statusText, valueColor: statusColor)
+                            SettingsRow(label: "状态", value: statusText, valueColor: statusColor)
                             if !gateway.serverVersion.isEmpty {
-                                SettingsRow(label: "VERSION", value: gateway.serverVersion)
+                                SettingsRow(label: "版本", value: gateway.serverVersion)
                             }
                             if !gateway.serverHost.isEmpty {
-                                SettingsRow(label: "SERVER", value: gateway.serverHost)
+                                SettingsRow(label: "服务器", value: gateway.serverHost)
                             }
                         }
                         .vanguardCard()
@@ -76,7 +76,7 @@ struct SettingsView: View {
 
                     // Diagnostics
                     VStack(alignment: .leading, spacing: 12) {
-                        SectionLabel(text: "Diagnostics")
+                        SectionLabel(text: "诊断")
 
                         NavigationLink {
                             HealthView()
@@ -84,7 +84,7 @@ struct SettingsView: View {
                             HStack {
                                 Image(systemName: "heart.text.square.fill")
                                     .foregroundStyle(Color.ocPrimary)
-                                Text("Health & Channels")
+                                Text("健康与频道")
                                     .font(.body(14, weight: .medium))
                                     .foregroundStyle(Color.textPrimary)
                                 Spacer()
@@ -104,7 +104,7 @@ struct SettingsView: View {
                     } label: {
                         HStack {
                             Image(systemName: "wifi.slash")
-                            Text("DISCONNECT")
+                            Text("断开连接")
                                 .font(.label(12, weight: .bold))
                                 .tracking(1.5)
                         }
@@ -121,12 +121,12 @@ struct SettingsView: View {
 
                     // About
                     VStack(alignment: .leading, spacing: 12) {
-                        SectionLabel(text: "About")
+                        SectionLabel(text: "关于")
 
                         VStack(spacing: 0) {
-                            SettingsRow(label: "APP", value: "OpenClaw iOS v0.2.0")
-                            SettingsRow(label: "DOCS", value: "docs.openclaw.ai", isLink: true)
-                            SettingsRow(label: "SOURCE", value: "github.com/openclaw", isLink: true)
+                            SettingsRow(label: "应用", value: "开放爪 iOS v0.2.0")
+                            SettingsRow(label: "文档", value: "docs.openclaw.ai", isLink: true)
+                            SettingsRow(label: "源码", value: "github.com/openclaw", isLink: true)
                         }
                         .vanguardCard()
                     }
@@ -141,9 +141,9 @@ struct SettingsView: View {
 
     private var statusText: String {
         switch gateway.connectionState {
-        case .connected: "Connected"
-        case .connecting: "Connecting..."
-        case .disconnected: "Disconnected"
+        case .connected: "已连接"
+        case .connecting: "连接中..."
+        case .disconnected: "已断开"
         case .error(let msg): msg
         }
     }

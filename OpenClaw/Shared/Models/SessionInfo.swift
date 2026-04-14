@@ -39,17 +39,17 @@ struct CronJob: Identifiable, Codable {
     }
 
     var scheduleDescription: String {
-        guard let schedule else { return "Unknown" }
+        guard let schedule else { return "未知" }
         switch schedule.kind {
         case "cron": return schedule.expr ?? "cron"
         case "every":
             if let ms = schedule.everyMs {
                 let mins = ms / 60_000
-                return mins >= 60 ? "Every \(mins / 60)h" : "Every \(mins)m"
+                return mins >= 60 ? "每\(mins / 60)小时" : "每\(mins)分钟"
             }
-            return "Interval"
-        case "at": return "One-shot"
-        default: return schedule.kind ?? "Unknown"
+            return "间隔"
+        case "at": return "单次"
+        default: return schedule.kind ?? "未知"
         }
     }
 }

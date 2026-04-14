@@ -7,12 +7,12 @@ final class AppState: ObservableObject {
 
         var label: String {
             switch self {
-            case .chat: "Chat"
-            case .agents: "Agents"
-            case .sessions: "Sessions"
-            case .cron: "Cron"
-            case .nodes: "Nodes"
-            case .settings: "Settings"
+            case .chat: "聊天"
+            case .agents: "代理"
+            case .sessions: "会话"
+            case .cron: "定时任务"
+            case .nodes: "节点"
+            case .settings: "设置"
             }
         }
 

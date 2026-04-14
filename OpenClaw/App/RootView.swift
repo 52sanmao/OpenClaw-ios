@@ -56,37 +56,37 @@ struct MainTabView: View {
             NavigationStack {
                 ChatView()
             }
-            .tabItem { Label("CHAT", systemImage: "bubble.left.and.bubble.right.fill") }
+            .tabItem { Label("聊天", systemImage: "bubble.left.and.bubble.right.fill") }
             .tag(AppState.Tab.chat)
 
             NavigationStack {
                 LiveAgentsView()
             }
-            .tabItem { Label("AGENTS", systemImage: "bolt.fill") }
+            .tabItem { Label("代理", systemImage: "bolt.fill") }
             .tag(AppState.Tab.agents)
 
             NavigationStack {
                 SessionsView()
             }
-            .tabItem { Label("SESSIONS", systemImage: "list.bullet.rectangle.portrait.fill") }
+            .tabItem { Label("会话", systemImage: "list.bullet.rectangle.portrait.fill") }
             .tag(AppState.Tab.sessions)
 
             NavigationStack {
                 CronView()
             }
-            .tabItem { Label("CRON", systemImage: "clock.fill") }
+            .tabItem { Label("定时任务", systemImage: "clock.fill") }
             .tag(AppState.Tab.cron)
 
             NavigationStack {
                 NodesView()
             }
-            .tabItem { Label("NODES", systemImage: "antenna.radiowaves.left.and.right") }
+            .tabItem { Label("节点", systemImage: "antenna.radiowaves.left.and.right") }
             .tag(AppState.Tab.nodes)
 
             NavigationStack {
                 SettingsView()
             }
-            .tabItem { Label("SETTINGS", systemImage: "gearshape.fill") }
+            .tabItem { Label("设置", systemImage: "gearshape.fill") }
             .tag(AppState.Tab.settings)
         }
         .tint(.ocPrimary)

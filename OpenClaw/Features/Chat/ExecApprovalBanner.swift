@@ -65,7 +65,7 @@ struct ExecApprovalBanner: View {
                 HStack {
                     Image(systemName: "exclamationmark.shield.fill")
                         .foregroundStyle(Color.ocTertiary)
-                    Text("APPROVAL REQUIRED")
+                    Text("需要审批")
                         .font(.label(10, weight: .bold))
                         .tracking(1.5)
                         .foregroundStyle(Color.ocTertiary)
@@ -96,7 +96,7 @@ struct ExecApprovalBanner: View {
                     Button {
                         Task { await service.reject(request) }
                     } label: {
-                        Text("REJECT")
+                        Text("拒绝")
                             .font(.label(11, weight: .bold))
                             .tracking(1)
                             .frame(maxWidth: .infinity)
@@ -109,7 +109,7 @@ struct ExecApprovalBanner: View {
                     Button {
                         Task { await service.approve(request) }
                     } label: {
-                        Text("APPROVE")
+                        Text("批准")
                             .font(.label(11, weight: .bold))
                             .tracking(1)
                             .frame(maxWidth: .infinity)
@@ -121,7 +121,7 @@ struct ExecApprovalBanner: View {
                 }
 
                 if service.pendingApprovals.count > 1 {
-                    Text("+\(service.pendingApprovals.count - 1) more pending")
+                    Text("+\(service.pendingApprovals.count - 1) 个待处理")
                         .font(.label(9))
                         .foregroundStyle(Color.textTertiary)
                 }

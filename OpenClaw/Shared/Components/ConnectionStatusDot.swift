@@ -24,10 +24,10 @@ struct ConnectionStatusDot: View {
 
     private var label: String {
         switch state {
-        case .connected: "Live"
-        case .connecting: "Sync"
-        case .disconnected: "Off"
-        case .error: "Error"
+        case .connected: "在线"
+        case .connecting: "同步中"
+        case .disconnected: "关闭"
+        case .error: "错误"
         }
     }
 }

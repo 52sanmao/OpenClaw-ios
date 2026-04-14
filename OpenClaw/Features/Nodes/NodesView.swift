@@ -12,8 +12,8 @@ struct NodesView: View {
 
             VStack(alignment: .leading, spacing: 0) {
                 VStack(alignment: .leading, spacing: 4) {
-                    SectionLabel(text: "Connected Devices")
-                    Text("Nodes")
+                    SectionLabel(text: "已连接设备")
+                    Text("节点")
                         .font(.headline(28))
                         .foregroundStyle(Color.textPrimary)
                 }
@@ -31,7 +31,7 @@ struct NodesView: View {
                         Image(systemName: "antenna.radiowaves.left.and.right")
                             .font(.system(size: 40))
                             .foregroundStyle(Color.textTertiary)
-                        Text("NO PAIRED DEVICES")
+                        Text("暂无配对设备")
                             .font(.label(11, weight: .bold))
                             .tracking(2)
                             .foregroundStyle(Color.textTertiary)

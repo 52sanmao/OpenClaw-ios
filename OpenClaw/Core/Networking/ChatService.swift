@@ -124,8 +124,8 @@ final class ChatService: ObservableObject {
 
             if !response.ok {
                 isAgentTyping = false
-                let errorMsg = response.error?.message ?? "Unknown error"
-                messages.append(ChatMessage(role: .system, content: "Error: \(errorMsg)"))
+                let errorMsg = response.error?.message ?? "未知错误"
+                messages.append(ChatMessage(role: .system, content: "错误: \(errorMsg)"))
                 return
             }
 
@@ -135,7 +135,7 @@ final class ChatService: ObservableObject {
             }
         } catch {
             isAgentTyping = false
-            messages.append(ChatMessage(role: .system, content: "Send failed: \(error.localizedDescription)"))
+            messages.append(ChatMessage(role: .system, content: "发送失败: \(error.localizedDescription)"))
         }
     }
 
@@ -187,14 +187,14 @@ final class ChatService: ObservableObject {
         case "error":
             isAgentTyping = false
             currentStreamText = ""
-            let errorMsg = dict["errorMessage"] as? String ?? "Agent error"
-            messages.append(ChatMessage(role: .system, content: "Error: \(errorMsg)"))
+            let errorMsg = dict["errorMessage"] as? String ?? "代理错误"
+            messages.append(ChatMessage(role: .system, content: "错误: \(errorMsg)"))
             currentRunId = nil
 
         case "aborted":
             isAgentTyping = false
             currentStreamText = ""
-            messages.append(ChatMessage(role: .system, content: "Response cancelled"))
+            messages.append(ChatMessage(role: .system, content: "响应已取消"))
             currentRunId = nil
 
         default:
