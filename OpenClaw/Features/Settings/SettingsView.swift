@@ -124,7 +124,7 @@ struct SettingsView: View {
                         SectionLabel(text: "关于")
 
                         VStack(spacing: 0) {
-                            SettingsRow(label: "应用", value: "开放爪 iOS v0.2.0")
+                            SettingsRow(label: "应用", value: "开放爪 iOS v2.0")
                             SettingsRow(label: "文档", value: "docs.openclaw.ai", isLink: true)
                             SettingsRow(label: "源码", value: "github.com/openclaw", isLink: true)
                         }

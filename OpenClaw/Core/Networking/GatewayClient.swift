@@ -34,10 +34,16 @@ final class GatewayClient: ObservableObject {
         }
     }
 
+    private var appVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "未知"
+    }
+
     var debugLogExportText: String {
         let lines = [
+            "App: 开放爪 iOS",
+            "App 版本: \(appVersion)",
             "IronClaw 主机: \(serverHost.isEmpty ? "未连接" : serverHost)",
-            "版本: \(serverVersion.isEmpty ? "未知" : serverVersion)",
+            "服务版本: \(serverVersion.isEmpty ? "未知" : serverVersion)",
             "连接状态: \(String(describing: connectionState))",
             "聊天链路: /api/chat/thread/new -> /api/chat/send -> /api/chat/history",
             "",
