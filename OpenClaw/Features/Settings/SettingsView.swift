@@ -56,14 +56,12 @@ struct SettingsView: View {
 
                     // Connection
                     VStack(alignment: .leading, spacing: 12) {
-                        SectionLabel(text: "网关连接")
+                        SectionLabel(text: "IronClaw 连接")
 
                         VStack(spacing: 0) {
                             if let config = ConnectionStore.load() {
                                 SettingsRow(label: "地址", value: config.displayName)
-                                if !config.host.hasPrefix("ws://") && !config.host.hasPrefix("wss://") {
-                                    SettingsRow(label: "TLS", value: config.useTLS ? "已启用" : "已禁用")
-                                }
+                                SettingsRow(label: "协议", value: config.httpBaseURL.scheme?.uppercased() ?? "HTTP")
                             }
                             SettingsRow(label: "状态", value: statusText, valueColor: statusColor)
                             if !gateway.serverVersion.isEmpty {

@@ -1,7 +1,6 @@
 import Foundation
 import Combine
 
-/// Core WebSocket client for the OpenClaw Gateway protocol.
 @MainActor
 final class GatewayClient: ObservableObject {
     static let shared = GatewayClient()
@@ -13,24 +12,16 @@ final class GatewayClient: ObservableObject {
         case error(String)
     }
 
-    // MARK: - Published State
     @Published var connectionState: ConnectionState = .disconnected
     @Published var serverVersion: String = ""
     @Published var serverHost: String = ""
     @Published var connId: String = ""
     @Published var uptimeMs: Int = 0
 
-    // MARK: - Private
-    private var webSocket: URLSessionWebSocketTask?
-    private var urlSession: URLSession?
-    private var pendingRequests: [String: CheckedContinuation<ResponseFrame, Error>] = [:]
-    private var eventHandlers: [String: [(AnyCodable?) -> Void]] = [:]
-    private var challengeContinuation: CheckedContinuation<String, Error>?
-    private var tickTimer: Timer?
-    private var reconnectTask: Task<Void, Never>?
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
-    private var isReceiving = false
+    private var eventHandlers: [String: [(AnyCodable?) -> Void]] = [:]
+    private var threadIDsBySessionKey: [String: String] = [:]
 
     private var config: ConnectionConfig? {
         ConnectionStore.load()
@@ -38,176 +29,343 @@ final class GatewayClient: ObservableObject {
 
     private init() {}
 
-    // MARK: - Connect
-
     func connect(config: ConnectionConfig? = nil) async throws {
         let cfg = config ?? self.config
         guard let cfg else {
             throw GatewayError.noConfig
         }
 
-        NSLog("[GW] connect() called, url=\(cfg.websocketURL)")
-
-        // Clean up any existing connection
-        cleanupConnection()
-
         connectionState = .connecting
         ConnectionStore.save(cfg)
 
-        let url = cfg.websocketURL
-        let session = URLSession(configuration: .default)
-        self.urlSession = session
-
-        var request = URLRequest(url: url)
-        let originScheme = url.scheme == "wss" ? "https" : "http"
-        if let host = url.host {
-            let port = url.port ?? (url.scheme == "wss" ? 443 : 80)
-            let origin = "\(originScheme)://\(host):\(port)"
-            request.setValue(origin, forHTTPHeaderField: "Origin")
-            NSLog("[GW] Setting Origin header: \(origin)")
-        }
-
-        let ws = session.webSocketTask(with: request)
-        self.webSocket = ws
-        ws.resume()
-
-        // Start the receive loop
-        startReceiving()
-
-        // Step 1: Wait for connect.challenge event from gateway
-        let nonce: String
         do {
-            nonce = try await withCheckedThrowingContinuation { continuation in
-                self.challengeContinuation = continuation
-
-                // Timeout after 10 seconds
-                Task {
-                    try? await Task.sleep(for: .seconds(10))
-                    if let cont = self.challengeContinuation {
-                        self.challengeContinuation = nil
-                        NSLog("[GW] TIMEOUT waiting for challenge!")
-                        cont.resume(throwing: GatewayError.timeout)
-                    }
-                }
-            }
-            NSLog("[GW] Got challenge nonce=\(nonce.prefix(8))...")
+            let models = try await fetchModels(config: cfg)
+            serverVersion = models.data?.first?.id ?? "IronClaw"
+            serverHost = cfg.httpBaseURL.host ?? cfg.displayName
+            connId = ""
+            uptimeMs = 0
+            await mappedConnectionMetadata(config: cfg)
+            connectionState = .connected
         } catch {
-            NSLog("[GW] Challenge wait failed: \(error)")
             clearServerInfo()
-            connectionState = .error("未收到网关质询: \(error.localizedDescription)")
+            connectionState = .error(error.localizedDescription)
             throw error
         }
-
-        // Step 2: Send connect request
-        NSLog("[GW] Sending connect request...")
-        let connectParams: [String: Any] = [
-            "minProtocol": GatewayProtocolVersion.current,
-            "maxProtocol": GatewayProtocolVersion.current,
-            "client": [
-                "id": "openclaw-ios",
-                "version": "0.1.0",
-                "platform": "ios",
-                "mode": "ui"
-            ] as [String: Any],
-            "role": "operator",
-            "scopes": ["operator.read", "operator.write", "operator.admin", "operator.approvals"],
-            "auth": ["token": cfg.token] as [String: Any],
-            "locale": Locale.current.identifier,
-            "userAgent": "openclaw-ios/0.1.0"
-        ]
-
-        let response = try await sendRequest(method: "connect", params: connectParams)
-        NSLog("[GW] Connect response ok=\(response.ok)")
-
-        guard response.ok else {
-            let msg = response.error?.message ?? "连接被拒绝"
-            clearServerInfo()
-            connectionState = .error(msg)
-            throw GatewayError.connectionRejected(msg)
-        }
-
-        // Step 3: Parse hello-ok
-        if let payloadData = try? JSONSerialization.data(withJSONObject: (response.payload?.value as? [String: Any]) ?? [:]),
-           let hello = try? decoder.decode(HelloOkPayload.self, from: payloadData) {
-            serverVersion = hello.server?.version ?? ""
-            serverHost = hello.server?.host ?? ""
-            connId = hello.server?.connId ?? ""
-            if let tickMs = hello.policy?.tickIntervalMs {
-                startTickTimer(intervalMs: tickMs)
-            }
-            NSLog("[GW] hello-ok parsed: version=\(serverVersion) host=\(serverHost)")
-        }
-
-        connectionState = .connected
-        NSLog("[GW] CONNECTION ESTABLISHED!")
     }
 
     func disconnect() {
-        cleanupConnection()
         clearServerInfo()
+        threadIDsBySessionKey.removeAll()
         connectionState = .disconnected
     }
 
-    private func cleanupConnection() {
-        reconnectTask?.cancel()
-        reconnectTask = nil
-        tickTimer?.invalidate()
-        tickTimer = nil
-        webSocket?.cancel(with: .normalClosure, reason: nil)
-        webSocket = nil
-        isReceiving = false
-
-        // Fail all pending requests
-        for (_, continuation) in pendingRequests {
-            continuation.resume(throwing: GatewayError.notConnected)
-        }
-        pendingRequests.removeAll()
-
-        // Clear challenge continuation
-        if let cont = challengeContinuation {
-            challengeContinuation = nil
-            cont.resume(throwing: GatewayError.notConnected)
-        }
-    }
-
-    // MARK: - Send Request
-
     @discardableResult
     func sendRequest(method: String, params: [String: Any]? = nil) async throws -> ResponseFrame {
-        let frame = RequestFrame(method: method, params: params)
-        let data = try encoder.encode(frame)
-
-        guard let ws = webSocket else {
+        guard connectionState == .connected || config != nil else {
             throw GatewayError.notConnected
         }
 
-        // Protocol requires text frames
-        guard let text = String(data: data, encoding: .utf8) else {
-            throw GatewayError.invalidResponse
-        }
+        switch method {
+        case "ping":
+            return ResponseFrame(type: "res", id: UUID().uuidString, ok: true, payload: AnyCodable(["ok": true]), error: nil)
 
-        return try await withCheckedThrowingContinuation { continuation in
-            pendingRequests[frame.id] = continuation
-            ws.send(.string(text)) { [weak self] error in
-                if let error {
-                    Task { @MainActor in
-                        self?.pendingRequests.removeValue(forKey: frame.id)
+        case "sessions.list":
+            let limit = params?["limit"] as? Int ?? 50
+            return try await mappedSessionsListResponse(limit: limit)
+
+        case "chat.history":
+            guard let sessionKey = params?["sessionKey"] as? String else {
+                throw GatewayError.invalidResponse
+            }
+            let limit = params?["limit"] as? Int ?? 50
+            let includeTools = params?["includeTools"] as? Bool ?? false
+            return try await mappedChatHistoryResponse(sessionKey: sessionKey, limit: limit, includeTools: includeTools)
+
+        case "cron.list":
+            let includeDisabled = params?["includeDisabled"] as? Bool ?? true
+            let payload = try await invokeTool(
+                tool: "cron",
+                args: [
+                    "action": "list",
+                    "includeDisabled": includeDisabled,
+                ]
+            )
+            return ResponseFrame(type: "res", id: UUID().uuidString, ok: true, payload: AnyCodable(payload), error: nil)
+
+        case "cron.update":
+            guard let jobId = params?["jobId"] as? String,
+                  let patch = params?["patch"] as? [String: Any] else {
+                throw GatewayError.invalidResponse
+            }
+            let payload = try await invokeTool(
+                tool: "cron",
+                args: [
+                    "action": "update",
+                    "jobId": jobId,
+                    "patch": patch,
+                ]
+            )
+            return ResponseFrame(type: "res", id: UUID().uuidString, ok: true, payload: AnyCodable(payload), error: nil)
+
+        case "cron.run":
+            guard let jobId = params?["jobId"] as? String else {
+                throw GatewayError.invalidResponse
+            }
+            let payload = try await invokeTool(
+                tool: "cron",
+                args: [
+                    "action": "run",
+                    "jobId": jobId,
+                ]
+            )
+            return ResponseFrame(type: "res", id: UUID().uuidString, ok: true, payload: AnyCodable(payload), error: nil)
+
+        default:
+            return ResponseFrame(
+                type: "res",
+                id: UUID().uuidString,
+                ok: false,
+                payload: nil,
+                error: ErrorShape(code: "unsupported_method", message: "IronClaw 客户端暂未实现方法：\(method)", retryable: false)
+            )
+        }
+    }
+
+    func streamChat(message: String, sessionKey: String, model: String = "main") -> AsyncThrowingStream<String, Error> {
+        AsyncThrowingStream { continuation in
+            Task {
+                do {
+                    _ = model
+                    let threadId = try await resolveThreadID(sessionKey: sessionKey)
+                    let baselineHistory = try await fetchThreadHistory(threadId: threadId)
+                    try await sendThreadMessage(threadId: threadId, content: message)
+                    let poll = try await waitForThreadTurn(threadId: threadId, afterTurnCount: baselineHistory.turns.count)
+                    let reply = (poll.latestTurn.response ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !reply.isEmpty {
+                        continuation.yield(reply)
                     }
-                    continuation.resume(throwing: error)
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
                 }
             }
         }
     }
 
-    /// Fire-and-forget send (for ticks, etc.)
-    func sendFrame(_ frame: RequestFrame) {
-        guard let data = try? encoder.encode(frame),
-              let text = String(data: data, encoding: .utf8),
-              let ws = webSocket else { return }
-        ws.send(.string(text)) { _ in }
+    private func resolveThreadID(sessionKey: String) async throws -> String {
+        if let existing = threadIDsBySessionKey[sessionKey], !existing.isEmpty {
+            return existing
+        }
+        if UUID(uuidString: sessionKey) != nil {
+            threadIDsBySessionKey[sessionKey] = sessionKey
+            return sessionKey
+        }
+        let created = try await createThread()
+        threadIDsBySessionKey[sessionKey] = created.id
+        return created.id
     }
 
-    // MARK: - Event Subscription
+    private func createThread() async throws -> IronClawThreadInfo {
+        let cfg = try requireConfig()
+        let token = try requireToken(cfg)
+        let url = try buildURL(baseURL: cfg.httpBaseURL, path: "api/chat/thread/new")
+
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await URLSession.shared.data(for: req)
+        try validateHTTPResponse(response, data: data, path: "api/chat/thread/new")
+        return try snakeCaseDecoder.decode(IronClawThreadInfo.self, from: data)
+    }
+
+    private func sendThreadMessage(threadId: String, content: String) async throws {
+        let cfg = try requireConfig()
+        let token = try requireToken(cfg)
+        let url = try buildURL(baseURL: cfg.httpBaseURL, path: "api/chat/send")
+
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONSerialization.data(withJSONObject: [
+            "thread_id": threadId,
+            "content": content,
+            "timezone": TimeZone.current.identifier,
+        ])
+
+        let (data, response) = try await URLSession.shared.data(for: req)
+        try validateHTTPResponse(response, data: data, path: "api/chat/send")
+    }
+
+    private func fetchThreadHistory(threadId: String) async throws -> IronClawThreadHistoryResponse {
+        let cfg = try requireConfig()
+        let token = try requireToken(cfg)
+        let encodedThreadId = threadId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? threadId
+        let url = try buildURL(baseURL: cfg.httpBaseURL, path: "api/chat/history?thread_id=\(encodedThreadId)")
+
+        var req = URLRequest(url: url)
+        req.httpMethod = "GET"
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await URLSession.shared.data(for: req)
+        try validateHTTPResponse(response, data: data, path: "api/chat/history")
+        return try snakeCaseDecoder.decode(IronClawThreadHistoryResponse.self, from: data)
+    }
+
+    private func waitForThreadTurn(threadId: String, afterTurnCount: Int, timeout: TimeInterval = 45) async throws -> IronClawThreadPollResult {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            let history = try await fetchThreadHistory(threadId: threadId)
+            if let latestTurn = history.turns.last,
+               history.turns.count > afterTurnCount,
+               latestTurn.isTerminal {
+                return IronClawThreadPollResult(history: history, latestTurn: latestTurn)
+            }
+            try await Task.sleep(nanoseconds: 300_000_000)
+        }
+        throw GatewayError.serverError(408, type: "timeout", message: "等待 IronClaw 对话结果超时")
+    }
+
+    private var snakeCaseDecoder: JSONDecoder {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        return decoder
+    }
+
+    private func mapThreadHistoryMessages(_ history: IronClawThreadHistoryResponse) -> [[String: Any]] {
+        history.turns.enumerated().flatMap { index, turn -> [[String: Any]] in
+            var items: [[String: Any]] = []
+            let timestamp = Self.timestampMs(from: turn.startedAt)
+            let userText = turn.userInput.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !userText.isEmpty {
+                items.append([
+                    "id": "\(turn.turnNumber ?? index)-user",
+                    "timestamp": timestamp,
+                    "role": "user",
+                    "content": [["type": "text", "text": userText]],
+                ])
+            }
+            let assistantText = (turn.response ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            if !assistantText.isEmpty {
+                items.append([
+                    "id": "\(turn.turnNumber ?? index)-assistant",
+                    "timestamp": timestamp,
+                    "role": "assistant",
+                    "content": [["type": "text", "text": assistantText]],
+                ])
+            }
+            return items
+        }
+    }
+
+    private static func timestampMs(from iso8601: String?) -> Int {
+        guard let iso8601,
+              let date = ISO8601DateFormatter().date(from: iso8601) else {
+            return Int(Date().timeIntervalSince1970 * 1000)
+        }
+        return Int(date.timeIntervalSince1970 * 1000)
+    }
+
+    private func fetchGatewayStatus(config: ConnectionConfig) async throws -> IronClawGatewayStatus? {
+        let token = try requireToken(config)
+        let candidatePaths = ["api/gateway/status", "health/detailed", "health"]
+        for path in candidatePaths {
+            do {
+                let url = try buildURL(baseURL: config.httpBaseURL, path: path)
+                var req = URLRequest(url: url)
+                req.httpMethod = "GET"
+                req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+                let (data, response) = try await URLSession.shared.data(for: req)
+                try validateHTTPResponse(response, data: data, path: path)
+                if let status = try? snakeCaseDecoder.decode(IronClawGatewayStatus.self, from: data) {
+                    return status
+                }
+            } catch {
+                continue
+            }
+        }
+        return nil
+    }
+
+    private func mappedChatHistoryPayload(sessionKey: String, history: IronClawThreadHistoryResponse) -> [String: Any] {
+        [
+            "sessionKey": sessionKey,
+            "sessionId": history.threadId,
+            "thinkingLevel": "off",
+            "messages": mapThreadHistoryMessages(history),
+        ]
+    }
+
+    private func sessionsListPayload(limit: Int) async throws -> [String: Any] {
+        let payload = try await invokeTool(tool: "sessions_list", args: ["limit": limit])
+        return payload
+    }
+
+    private func mappedSessionsListResponse(limit: Int) async throws -> ResponseFrame {
+        let payload = try await sessionsListPayload(limit: limit)
+        return ResponseFrame(type: "res", id: UUID().uuidString, ok: true, payload: AnyCodable(payload), error: nil)
+    }
+
+    private func mappedChatHistoryResponse(sessionKey: String, limit: Int, includeTools: Bool) async throws -> ResponseFrame {
+        _ = includeTools
+        if let threadId = threadIDsBySessionKey[sessionKey] ?? (UUID(uuidString: sessionKey) != nil ? sessionKey : nil) {
+            let history = try await fetchThreadHistory(threadId: threadId)
+            let payload = mappedChatHistoryPayload(sessionKey: sessionKey, history: history)
+            return ResponseFrame(type: "res", id: UUID().uuidString, ok: true, payload: AnyCodable(payload), error: nil)
+        }
+
+        let payload = try await invokeTool(
+            tool: "sessions_history",
+            args: [
+                "sessionKey": sessionKey,
+                "limit": limit,
+                "includeTools": includeTools,
+            ]
+        )
+        return ResponseFrame(type: "res", id: UUID().uuidString, ok: true, payload: AnyCodable(payload), error: nil)
+    }
+
+    private func mappedConnectionMetadata(config: ConnectionConfig) async {
+        if let status = try? await fetchGatewayStatus(config: config) {
+            serverVersion = status.version ?? serverVersion
+            uptimeMs = Int((status.uptimeSeconds ?? 0) * 1000)
+        }
+    }
+
+    private struct IronClawThreadInfo: Decodable {
+        let id: String
+    }
+
+    private struct IronClawThreadHistoryResponse: Decodable {
+        let threadId: String
+        let turns: [IronClawThreadTurn]
+        let hasMore: Bool
+    }
+
+    private struct IronClawThreadTurn: Decodable {
+        let turnNumber: Int?
+        let userInput: String
+        let response: String?
+        let state: String
+        let startedAt: String?
+
+        var isTerminal: Bool {
+            let normalized = state.lowercased()
+            return normalized.contains("completed") || normalized.contains("failed") || normalized.contains("accepted")
+        }
+    }
+
+    private struct IronClawThreadPollResult {
+        let history: IronClawThreadHistoryResponse
+        let latestTurn: IronClawThreadTurn
+    }
+
+    private struct IronClawGatewayStatus: Decodable {
+        let status: String?
+        let version: String?
+        let uptimeSeconds: Double?
+    }
 
     func onEvent(_ eventName: String, handler: @escaping (AnyCodable?) -> Void) {
         eventHandlers[eventName, default: []].append(handler)
@@ -217,85 +375,106 @@ final class GatewayClient: ObservableObject {
         eventHandlers.removeValue(forKey: eventName)
     }
 
-    // MARK: - Private
+    private func fetchModels(config: ConnectionConfig) async throws -> IronClawModelsEnvelope {
+        let token = try requireToken(config)
+        let url = try buildURL(baseURL: config.httpBaseURL, path: "v1/models")
+        var req = URLRequest(url: url)
+        req.httpMethod = "GET"
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 
-    private func startReceiving() {
-        guard !isReceiving else { return }
-        isReceiving = true
-        receiveNext()
+        let (data, response) = try await URLSession.shared.data(for: req)
+        try validateHTTPResponse(response, data: data, path: "v1/models")
+        return try decoder.decode(IronClawModelsEnvelope.self, from: data)
     }
 
-    private func receiveNext() {
-        guard let ws = webSocket else {
-            isReceiving = false
+    private func invokeTool(tool: String, args: [String: Any]) async throws -> [String: Any] {
+        let cfg = try requireConfig()
+        let token = try requireToken(cfg)
+        let url = try buildURL(baseURL: cfg.httpBaseURL, path: "tools/invoke")
+
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONSerialization.data(withJSONObject: ["tool": tool, "args": args])
+
+        let (data, response) = try await URLSession.shared.data(for: req)
+        try validateHTTPResponse(response, data: data, path: "tools/invoke")
+
+        let envelope = try decoder.decode(IronClawToolInvokeEnvelope.self, from: data)
+        guard envelope.ok else {
+            throw GatewayError.invalidResponse
+        }
+
+        let text = envelope.result.content.first?.text ?? "{}"
+        guard let nestedData = text.data(using: .utf8) else {
+            throw GatewayError.invalidResponse
+        }
+
+        let json = try JSONSerialization.jsonObject(with: nestedData)
+        guard let payload = json as? [String: Any] else {
+            throw GatewayError.invalidResponse
+        }
+        return payload
+    }
+
+    private func requireConfig() throws -> ConnectionConfig {
+        guard let cfg = config else { throw GatewayError.noConfig }
+        return cfg
+    }
+
+    private func requireToken(_ config: ConnectionConfig) throws -> String {
+        let trimmed = config.token.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { throw GatewayError.noToken }
+        return trimmed
+    }
+
+    private func buildURL(baseURL: URL, path: String) throws -> URL {
+        let trimmedBase = baseURL.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        let trimmedPath = path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard let url = URL(string: "\(trimmedBase)/\(trimmedPath)") else {
+            throw GatewayError.invalidResponse
+        }
+        return url
+    }
+
+    private func validateHTTPResponse(_ response: URLResponse, data: Data, path: String) throws {
+        guard let http = response as? HTTPURLResponse else {
+            throw GatewayError.invalidResponse
+        }
+
+        let body = String(data: data, encoding: .utf8) ?? ""
+        if (200...299).contains(http.statusCode) {
+            if isLikelyControlPage(body, response: http) {
+                throw GatewayError.controlPageReturned(path: path)
+            }
             return
         }
 
-        ws.receive { [weak self] result in
-            Task { @MainActor in
-                guard let self else { return }
-                switch result {
-                case .success(let message):
-                    self.handleMessage(message)
-                    self.receiveNext()
-                case .failure(let error):
-                    NSLog("[GW] receive FAILED: \(error)")
-                    self.isReceiving = false
-                    self.clearServerInfo()
-                    if self.connectionState == .connected {
-                        self.connectionState = .error(error.localizedDescription)
-                        self.attemptReconnect()
-                    }
-                }
-            }
+        if http.statusCode == 404, path == "tools/invoke" {
+            throw GatewayError.serverError(http.statusCode, type: "tool_unavailable", message: "当前 IronClaw 部署未启用工具接口（/tools/invoke），该功能不可用。")
         }
+
+        if let envelope = try? decoder.decode(IronClawAPIErrorEnvelope.self, from: data),
+           let error = envelope.error {
+            throw GatewayError.serverError(http.statusCode, type: error.type, message: error.message)
+        }
+
+        throw GatewayError.httpError(http.statusCode, body: body)
     }
 
-    private func handleMessage(_ message: URLSessionWebSocketTask.Message) {
-        let data: Data
-        switch message {
-        case .data(let d): data = d
-        case .string(let s): data = Data(s.utf8)
-        @unknown default: return
+    private func isLikelyControlPage(_ body: String, response: HTTPURLResponse) -> Bool {
+        let contentType = response.value(forHTTPHeaderField: "Content-Type")?.lowercased() ?? ""
+        let sample = body.prefix(512).lowercased()
+        guard contentType.contains("text/html") || sample.contains("<!doctype html") || sample.contains("<html") else {
+            return false
         }
 
-        guard let frame = try? decoder.decode(GatewayFrame.self, from: data) else { return }
-
-
-        switch frame.type {
-        case "res":
-            if let id = frame.id, let continuation = pendingRequests.removeValue(forKey: id) {
-                let response = ResponseFrame(
-                    type: "res",
-                    id: id,
-                    ok: frame.ok ?? false,
-                    payload: frame.payload,
-                    error: frame.error
-                )
-                continuation.resume(returning: response)
-            } else {
-            }
-
-        case "event":
-            if let eventName = frame.event {
-                // Handle connect.challenge specially
-                if eventName == "connect.challenge" {
-                    if let cont = challengeContinuation {
-                        challengeContinuation = nil
-                        let nonce = (frame.payload?.dict?["nonce"] as? String) ?? ""
-                        cont.resume(returning: nonce)
-                    } else {
-                    }
-                }
-
-                // Dispatch to all registered handlers
-                let handlerCount = eventHandlers[eventName]?.count ?? 0
-                eventHandlers[eventName]?.forEach { $0(frame.payload) }
-            }
-
-        default:
-            break
-        }
+        return sample.contains("openclaw") ||
+               sample.contains("ironclaw") ||
+               sample.contains("control ui") ||
+               sample.contains("<head") ||
+               sample.contains("<body")
     }
 
     private func clearServerInfo() {
@@ -304,62 +483,64 @@ final class GatewayClient: ObservableObject {
         connId = ""
         uptimeMs = 0
     }
+}
 
-    private func startTickTimer(intervalMs: Int) {
-        tickTimer?.invalidate()
-        let interval = TimeInterval(intervalMs) / 1000.0
-        tickTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
-            Task { @MainActor in
-                self?.sendTick()
-            }
-        }
-    }
+private struct IronClawModelsEnvelope: Decodable {
+    let data: [IronClawModel]?
 
-    private func sendTick() {
-        let frame = RequestFrame(method: "tick", params: ["ts": Int(Date().timeIntervalSince1970 * 1000)])
-        sendFrame(frame)
-    }
-
-    private func attemptReconnect() {
-        reconnectTask?.cancel()
-        reconnectTask = Task {
-            var delay: TimeInterval = 2
-            for attempt in 1...5 {
-                guard !Task.isCancelled else { return }
-                try? await Task.sleep(for: .seconds(delay))
-                guard !Task.isCancelled else { return }
-
-                guard let config else { return }
-
-                do {
-                    try await connect(config: config)
-                    return // Success
-                } catch {
-                    delay = min(delay * 1.5, 30) // Exponential backoff, max 30s
-                }
-            }
-            // Give up after 5 attempts
-            connectionState = .error("重连失败")
-        }
+    struct IronClawModel: Decodable {
+        let id: String
     }
 }
 
-// MARK: - Errors
+private struct IronClawToolInvokeEnvelope: Decodable {
+    struct Result: Decodable {
+        struct Content: Decodable {
+            let type: String
+            let text: String
+        }
+
+        let content: [Content]
+    }
+
+    let ok: Bool
+    let result: Result
+}
+
+private struct IronClawAPIErrorEnvelope: Decodable {
+    struct ErrorDetail: Decodable {
+        let type: String
+        let message: String
+    }
+
+    let error: ErrorDetail?
+}
 
 enum GatewayError: LocalizedError {
     case noConfig
+    case noToken
     case notConnected
-    case connectionRejected(String)
-    case timeout
     case invalidResponse
+    case controlPageReturned(path: String)
+    case httpError(Int, body: String)
+    case serverError(Int, type: String, message: String)
 
     var errorDescription: String? {
         switch self {
-        case .noConfig: "未找到网关配置"
-        case .notConnected: "未连接到网关"
-        case .connectionRejected(let msg): "连接被拒绝: \(msg)"
-        case .timeout: "请求超时"
-        case .invalidResponse: "网关响应无效"
+        case .noConfig:
+            return "未找到 IronClaw 配置"
+        case .noToken:
+            return "未找到 IronClaw Bearer Token"
+        case .notConnected:
+            return "未连接到 IronClaw 服务"
+        case .invalidResponse:
+            return "IronClaw 返回了无效响应"
+        case .controlPageReturned(let path):
+            return "当前地址返回的是控制页面，不是 API 根地址。请改用真正提供 /\(path) 接口的 IronClaw 服务地址。"
+        case .httpError(let code, let body):
+            return "IronClaw HTTP \(code)。响应内容：\(body.isEmpty ? "（空）" : body)"
+        case .serverError(let code, _, let message):
+            return "IronClaw HTTP \(code)：\(message)"
         }
     }
 }

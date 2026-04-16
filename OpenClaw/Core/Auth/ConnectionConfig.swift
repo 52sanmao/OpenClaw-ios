@@ -1,61 +1,68 @@
 import Foundation
 
 struct ConnectionConfig: Codable, Equatable {
-    var host: String       // host or full gateway/control URL
-    var port: Int           // fallback port for host-only input
-    var useTLS: Bool        // legacy hint for host-only input
-    var token: String       // gateway auth token
+    var host: String       // host 或完整 IronClaw HTTP 地址
+    var port: Int          // host-only 输入时的默认端口
+    var useTLS: Bool       // host-only 输入时决定 http / https
+    var token: String      // IronClaw Bearer Token
 
-    static func normalizeGatewayEndpoint(_ rawValue: String, fallbackPort: Int, useTLS: Bool) -> (host: String, port: Int) {
+    static func normalizeGatewayEndpoint(_ rawValue: String, fallbackPort: Int, useTLS: Bool) -> URL? {
         let trimmed = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
-            return (rawValue, fallbackPort)
+            return nil
         }
 
         if let components = URLComponents(string: trimmed),
            let scheme = components.scheme?.lowercased() {
-            if scheme == "ws" || scheme == "wss" {
-                return (trimmed, components.port ?? fallbackPort)
-            }
-
-            if scheme == "http" || scheme == "https" {
+            switch scheme {
+            case "http", "https":
                 var normalized = components
-                normalized.scheme = (scheme == "https") ? "wss" : "ws"
-                let resolvedPort = components.port ?? ((scheme == "https") ? 443 : 80)
+                normalized.scheme = scheme
+                normalized.user = nil
+                normalized.password = nil
                 if normalized.path.isEmpty {
-                    normalized.path = "/"
+                    normalized.path = ""
                 }
-                if let urlString = normalized.string {
-                    return (urlString, resolvedPort)
+                normalized.query = nil
+                normalized.fragment = nil
+                return normalized.url
+
+            case "ws", "wss":
+                var normalized = components
+                normalized.scheme = (scheme == "wss") ? "https" : "http"
+                normalized.user = nil
+                normalized.password = nil
+                if normalized.path.isEmpty {
+                    normalized.path = ""
                 }
+                normalized.query = nil
+                normalized.fragment = nil
+                return normalized.url
+
+            default:
+                break
             }
         }
 
-        return (trimmed, fallbackPort)
-    }
-
-    var websocketURL: URL {
-        let normalized = Self.normalizeGatewayEndpoint(host, fallbackPort: port, useTLS: useTLS)
-        if normalized.host.hasPrefix("ws://") || normalized.host.hasPrefix("wss://") {
-            return URL(string: normalized.host)!
-        }
-        let scheme = useTLS ? "wss" : "ws"
-        return URL(string: "\(scheme)://\(normalized.host):\(normalized.port)")!
+        let scheme = useTLS ? "https" : "http"
+        return URL(string: "\(scheme)://\(trimmed):\(fallbackPort)")
     }
 
     var httpBaseURL: URL {
-        let wsURL = websocketURL
-        var components = URLComponents(url: wsURL, resolvingAgainstBaseURL: false)!
-        components.scheme = wsURL.scheme == "wss" ? "https" : "http"
-        return components.url!
+        Self.normalizeGatewayEndpoint(host, fallbackPort: port, useTLS: useTLS)
+            ?? URL(string: "http://127.0.0.1:8642")!
     }
 
     var displayName: String {
-        let normalized = Self.normalizeGatewayEndpoint(host, fallbackPort: port, useTLS: useTLS)
-        if normalized.host.hasPrefix("ws://") || normalized.host.hasPrefix("wss://") {
-            return normalized.host
+        let baseURL = httpBaseURL
+        guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
+            return baseURL.absoluteString
         }
-        return "\(normalized.host):\(normalized.port)"
+        components.user = nil
+        components.password = nil
+        components.query = nil
+        components.fragment = nil
+        return components.string ?? baseURL.absoluteString
     }
 }
 

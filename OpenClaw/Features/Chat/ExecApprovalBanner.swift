@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Manages exec approval requests from the gateway.
+/// Manages exec approval requests from the IronClaw service.
 @MainActor
 final class ExecApprovalService: ObservableObject {
     struct ApprovalRequest: Identifiable {
@@ -37,22 +37,9 @@ final class ExecApprovalService: ObservableObject {
         }
     }
 
-    func approve(_ request: ApprovalRequest) async {
-        _ = try? await gateway.sendRequest(
-            method: "exec.approval.resolve",
-            params: ["requestId": request.id, "approved": true]
-        )
-        pendingApprovals.removeAll { $0.id == request.id }
-        Haptics.notification(.success)
-    }
+    func approve(_ request: ApprovalRequest) async {}
 
-    func reject(_ request: ApprovalRequest) async {
-        _ = try? await gateway.sendRequest(
-            method: "exec.approval.resolve",
-            params: ["requestId": request.id, "approved": false]
-        )
-        pendingApprovals.removeAll { $0.id == request.id }
-    }
+    func reject(_ request: ApprovalRequest) async {}
 }
 
 /// Banner shown at top of chat when exec approvals are pending.
@@ -91,33 +78,20 @@ struct ExecApprovalBanner: View {
                         .foregroundStyle(Color.textTertiary)
                 }
 
-                // Action buttons
-                HStack(spacing: 10) {
-                    Button {
-                        Task { await service.reject(request) }
-                    } label: {
-                        Text("拒绝")
-                            .font(.label(11, weight: .bold))
-                            .tracking(1)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                            .background(Color.surfaceContainerHigh)
-                            .foregroundStyle(Color.textSecondary)
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
-                    }
+                Text("IronClaw 当前未提供可用的移动端审批提交接口，请在服务端完成本次审批。")
+                    .font(.label(10))
+                    .foregroundStyle(Color.textTertiary)
 
-                    Button {
-                        Task { await service.approve(request) }
-                    } label: {
-                        Text("批准")
-                            .font(.label(11, weight: .bold))
-                            .tracking(1)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                            .background(Color.ocSuccess)
-                            .foregroundStyle(.black)
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
-                    }
+                // Read-only until IronClaw supports approval resolution on this path
+                HStack(spacing: 10) {
+                    Text("请在服务端处理")
+                        .font(.label(11, weight: .bold))
+                        .tracking(1)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .background(Color.surfaceContainerHigh)
+                        .foregroundStyle(Color.textSecondary)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
                 }
 
                 if service.pendingApprovals.count > 1 {

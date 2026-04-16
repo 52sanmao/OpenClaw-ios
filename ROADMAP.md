@@ -16,7 +16,7 @@
 - [ ] **Session Detail View** -- Tap session to view transcript, patch settings, reset/delete
 - [ ] **Session Usage** -- Show token counts + cost via `sessions.usage`
 - [ ] **Agent Selection** -- Pick which agent to talk to (main, iris, etc.) via `agent.identity`
-- [ ] **Exec Approvals** -- Listen for `exec.approval.requested` events, approve/reject from phone
+- [ ] **Exec Approvals** -- Listen for `exec.approval.requested` events and surface them safely on mobile once IronClaw exposes a supported resolve path
 - [ ] **Health Dashboard** -- Call `health` + `status` and show gateway health card
 - [ ] **Channels Status** -- Show Telegram/WhatsApp/Discord connection status via `channels.status`
 - [ ] **Image/File Attachments** -- Send photos from camera roll via the agent message
@@ -62,7 +62,7 @@
 | Pairing | `node.pair.request`, `node.pair.list`, `node.pair.approve`, `node.pair.reject` |
 | System | `connect`, `ping`, `status`, `health`, `channels.status` |
 | Config | `config.get`, `config.patch`, `config.schema` |
-| Approvals | `exec.approval.resolve` |
+| Approvals | `exec.approval.requested` (read-only until IronClaw resolve support exists) |
 | Messaging | `send`, `poll` |
 | Wake | `wake` |
 
@@ -75,6 +75,6 @@
 - `tick` -- Keepalive
 
 ### HTTP Endpoints (Alternative)
-- `POST /v1/chat/completions` -- OpenAI-compatible chat (simpler than WS for basic chat)
-- `POST /v1/responses` -- OpenResponses API (supports images, files, tools)
+- `POST /v1/responses` -- IronClaw Responses API
 - `POST /tools/invoke` -- Direct tool invocation without agent
+- `GET /v1/models` -- IronClaw model discovery

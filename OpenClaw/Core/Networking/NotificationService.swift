@@ -51,22 +51,10 @@ final class NotificationService: NSObject, ObservableObject {
             options: .customDismissAction
         )
 
-        // Approval actions
-        let approveAction = UNNotificationAction(
-            identifier: Self.approveAction,
-            title: "批准",
-            options: [.authenticationRequired]
-        )
-        let rejectAction = UNNotificationAction(
-            identifier: Self.rejectAction,
-            title: "拒绝",
-            options: [.destructive]
-        )
-
-        // Approval category
+        // Approval category (read-only notice until IronClaw exposes resolve support)
         let approvalCategory = UNNotificationCategory(
             identifier: Self.approvalCategory,
-            actions: [approveAction, rejectAction],
+            actions: [],
             intentIdentifiers: [],
             options: .customDismissAction
         )
@@ -144,7 +132,7 @@ final class NotificationService: NSObject, ObservableObject {
 
     private func showMessageNotification(text: String, sessionKey: String?) {
         let content = UNMutableNotificationContent()
-        content.title = "开放爪"
+        content.title = "IronClaw"
         content.body = String(text.prefix(256))
         content.sound = .default
         content.categoryIdentifier = Self.messageCategory
@@ -164,7 +152,7 @@ final class NotificationService: NSObject, ObservableObject {
     private func showApprovalNotification(requestId: String, command: String) {
         let content = UNMutableNotificationContent()
         content.title = "需要审批"
-        content.body = command.prefix(200).description
+        content.body = "IronClaw 当前未开放移动端审批处理，请回到服务端确认：\(command.prefix(160))"
         content.sound = .default
         content.categoryIdentifier = Self.approvalCategory
         content.userInfo["requestId"] = requestId
@@ -193,36 +181,10 @@ final class NotificationService: NSObject, ObservableObject {
                 let replyText = textResponse.userText
                 let sessionKey = userInfo["sessionKey"] as? String
                 Task {
-                    try? await gateway.sendRequest(
-                        method: "agent",
-                        params: [
-                            "message": replyText,
-                            "sessionKey": sessionKey as Any,
-                            "idempotencyKey": UUID().uuidString,
-                        ].compactMapValues { $0 }
-                    )
-                }
-            }
-
-        // Approve exec
-        case (Self.approvalCategory, Self.approveAction):
-            if let requestId = userInfo["requestId"] as? String {
-                Task {
-                    _ = try? await gateway.sendRequest(
-                        method: "exec.approval.resolve",
-                        params: ["requestId": requestId, "approved": true]
-                    )
-                }
-            }
-
-        // Reject exec
-        case (Self.approvalCategory, Self.rejectAction):
-            if let requestId = userInfo["requestId"] as? String {
-                Task {
-                    _ = try? await gateway.sendRequest(
-                        method: "exec.approval.resolve",
-                        params: ["requestId": requestId, "approved": false]
-                    )
+                    if let sessionKey {
+                        let stream = gateway.streamChat(message: replyText, sessionKey: sessionKey)
+                        for try await _ in stream {}
+                    }
                 }
             }
 

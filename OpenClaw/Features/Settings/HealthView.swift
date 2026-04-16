@@ -2,7 +2,7 @@ import SwiftUI
 
 struct HealthView: View {
     @EnvironmentObject var gateway: GatewayClient
-    @State private var channelStatuses: [[String: Any]] = []
+    @State private var sessionCount = 0
     @State private var isLoading = false
 
     var body: some View {
@@ -12,9 +12,9 @@ struct HealthView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    // Gateway
+                    // IronClaw
                     VStack(alignment: .leading, spacing: 12) {
-                        SectionLabel(text: "网关")
+                        SectionLabel(text: "IronClaw")
 
                         VStack(spacing: 0) {
                             SettingsRow(label: "版本", value: gateway.serverVersion)
@@ -24,38 +24,15 @@ struct HealthView: View {
                         .vanguardCard()
                     }
 
-                    // Channels
-                    if !channelStatuses.isEmpty {
-                        VStack(alignment: .leading, spacing: 12) {
-                            SectionLabel(text: "频道")
+                    VStack(alignment: .leading, spacing: 12) {
+                        SectionLabel(text: "会话")
 
-                            VStack(spacing: 8) {
-                                ForEach(Array(channelStatuses.enumerated()), id: \.offset) { _, channel in
-                                    let name = channel["channel"] as? String ?? "未知"
-                                    let status = channel["status"] as? String ?? "unknown"
-                                    let connected = status == "connected" || status == "ready"
-
-                                    HStack(spacing: 12) {
-                                        Image(systemName: channelIcon(name))
-                                            .foregroundStyle(connected ? Color.ocSuccess : Color.ocError)
-                                            .frame(width: 20)
-                                        Text(name.capitalized)
-                                            .font(.body(14, weight: .medium))
-                                            .foregroundStyle(Color.textPrimary)
-                                        Spacer()
-                                        HStack(spacing: 4) {
-                                            StatusLED(color: connected ? Color.ocSuccess : Color.ocError)
-                                            Text(status.uppercased())
-                                                .font(.label(9, weight: .bold))
-                                                .tracking(1)
-                                                .foregroundStyle(connected ? Color.ocSuccess : Color.ocError)
-                                        }
-                                    }
-                                    .padding(14)
-                                    .vanguardCard()
-                                }
-                            }
+                        VStack(spacing: 0) {
+                            SettingsRow(label: "活动会话数", value: "\(sessionCount)")
+                            SettingsRow(label: "连接方式", value: "IronClaw 线程接口")
+                            SettingsRow(label: "聊天链路", value: "/api/chat/thread/new · /api/chat/send · /api/chat/history", valueColor: Color.ocSuccess)
                         }
+                        .vanguardCard()
                     }
 
                     // Usage
@@ -68,7 +45,7 @@ struct HealthView: View {
                             HStack {
                                 Image(systemName: "chart.bar.fill")
                                     .foregroundStyle(Color.ocPrimary)
-                                Text("会话使用量")
+                                Text("会话概览")
                                     .font(.body(14, weight: .medium))
                                     .foregroundStyle(Color.textPrimary)
                                 Spacer()
@@ -101,22 +78,11 @@ struct HealthView: View {
     private func loadHealth() async {
         isLoading = true
         defer { isLoading = false }
-        if let response = try? await gateway.sendRequest(method: "channels.status"),
+        if let response = try? await gateway.sendRequest(method: "sessions.list", params: ["limit": 100]),
            response.ok,
            let payload = response.payload?.dict,
-           let channels = payload["channels"] as? [[String: Any]] {
-            channelStatuses = channels
-        }
-    }
-
-    private func channelIcon(_ name: String) -> String {
-        switch name.lowercased() {
-        case "telegram": "paperplane.fill"
-        case "whatsapp": "phone.fill"
-        case "discord": "gamecontroller.fill"
-        case "slack": "number"
-        case "signal": "lock.fill"
-        default: "bubble.fill"
+           let sessions = payload["sessions"] as? [[String: Any]] {
+            sessionCount = sessions.count
         }
     }
 }
@@ -189,7 +155,7 @@ struct UsageView: View {
         }
         .navigationTitle("使用量")
         .task {
-            if let response = try? await gateway.sendRequest(method: "sessions.usage", params: ["limit": 20]),
+            if let response = try? await gateway.sendRequest(method: "sessions.list", params: ["limit": 20, "includeLastMessage": true]),
                response.ok,
                let payload = response.payload?.dict,
                let sessions = payload["sessions"] as? [[String: Any]] {

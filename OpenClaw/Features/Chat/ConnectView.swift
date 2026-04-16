@@ -28,17 +28,17 @@ struct ConnectView: View {
                             .font(.headline(32))
                             .foregroundStyle(Color.textPrimary)
 
-                        Text("网关连接")
+                        Text("IronClaw 连接")
                             .font(.label(10, weight: .bold))
                             .tracking(2)
                             .foregroundStyle(Color.textTertiary)
                     }
                     .padding(.top, 60)
 
-                    // Discovered gateways
+                    // Discovered IronClaw services
                     if !discovery.gateways.isEmpty {
                         VStack(alignment: .leading, spacing: 10) {
-                            SectionLabel(text: "已发现网络")
+                            SectionLabel(text: "已发现 IronClaw 服务")
 
                             ForEach(discovery.gateways) { gw in
                                 Button {
@@ -84,11 +84,11 @@ struct ConnectView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         SectionLabel(text: "手动连接")
 
-                        VanguardField(title: "网关地址", placeholder: "ws://host:18789 或 https://host/path", text: $host)
+                        VanguardField(title: "IronClaw 地址", placeholder: "http://host:8642 或 https://host/path", text: $host)
                             .textInputAutocapitalization(.never)
                             .keyboardType(.URL)
 
-                        Text("支持完整 ws/wss 地址，也支持 http/https 控制地址并自动转换为 WebSocket。")
+                        Text("支持完整 http/https IronClaw API 地址；连接后聊天将使用线程接口而不是旧的 /v1/responses 主链路。")
                             .font(.label(11))
                             .foregroundStyle(Color.textTertiary)
 
@@ -96,13 +96,13 @@ struct ConnectView: View {
                             .keyboardType(.numberPad)
                             .disabled(usesFullURLInput)
 
-                        VanguardField(title: "令牌", placeholder: "网关认证令牌", text: $token, isSecure: true)
+                        VanguardField(title: "令牌", placeholder: "IronClaw Bearer Token", text: $token, isSecure: true)
 
                         HStack {
                             Image(systemName: "lock.fill")
                                 .font(.caption)
                                 .foregroundStyle(Color.textTertiary)
-                            Text("使用TLS (WSS://)")
+                            Text("使用 TLS (HTTPS://)")
                                 .font(.label(11, weight: .medium))
                                 .tracking(1)
                                 .foregroundStyle(Color.textSecondary)
@@ -174,9 +174,7 @@ struct ConnectView: View {
 
     private var usesFullURLInput: Bool {
         let trimmed = host.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return trimmed.hasPrefix("ws://") ||
-            trimmed.hasPrefix("wss://") ||
-            trimmed.hasPrefix("http://") ||
+        return trimmed.hasPrefix("http://") ||
             trimmed.hasPrefix("https://")
     }
 
@@ -199,7 +197,7 @@ struct ConnectView: View {
         let trimmedHost = host.trimmingCharacters(in: .whitespacesAndNewlines)
         let portNum: Int
         if usesFullURLInput {
-            portNum = Int(port) ?? 18789
+            portNum = Int(port) ?? 8642
         } else if let parsedPort = Int(port) {
             portNum = parsedPort
         } else {

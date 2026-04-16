@@ -31,7 +31,7 @@ struct NodesView: View {
                         Image(systemName: "antenna.radiowaves.left.and.right")
                             .font(.system(size: 40))
                             .foregroundStyle(Color.textTertiary)
-                        Text("暂无配对设备")
+                        Text("暂无可见 IronClaw 节点")
                             .font(.label(11, weight: .bold))
                             .tracking(2)
                             .foregroundStyle(Color.textTertiary)
@@ -65,16 +65,21 @@ struct NodesView: View {
         isLoading = true
         defer { isLoading = false }
         do {
-            let response = try await gateway.sendRequest(method: "system-presence")
+            let response = try await gateway.sendRequest(method: "sessions.list", params: ["limit": 100])
             guard response.ok,
                   let payload = response.payload?.dict,
-                  let entries = payload["entries"] as? [[String: Any]] else { return }
-            nodes = entries.compactMap { dict in
-                guard let deviceId = dict["deviceId"] as? String else { return nil }
+                  let sessions = payload["sessions"] as? [[String: Any]] else { return }
+
+            nodes = sessions.compactMap { dict in
+                guard let key = dict["key"] as? String else { return nil }
+                let kind = dict["kind"] as? String ?? "direct"
                 return NodeInfo(
-                    deviceId: deviceId, host: dict["host"] as? String,
-                    platform: dict["platform"] as? String, version: dict["version"] as? String,
-                    caps: dict["caps"] as? [String], lastSeen: nil
+                    deviceId: key,
+                    host: dict["label"] as? String,
+                    platform: "ironclaw",
+                    version: dict["model"] as? String,
+                    caps: [kind],
+                    lastSeen: nil
                 )
             }
         } catch {}

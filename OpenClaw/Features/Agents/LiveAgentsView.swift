@@ -243,39 +243,45 @@ final class LiveAgentsViewModel: ObservableObject {
     func startListening(gateway: GatewayClient) {
         guard !listeningSetup else { return }
         listeningSetup = true
+    }
 
-        // Listen for chat events to update status in real-time
-        gateway.onEvent("chat") { [weak self] payload in
-            Task { @MainActor in
-                guard let self,
-                      let dict = payload?.dict,
-                      let sessionKey = dict["sessionKey"] as? String,
-                      let state = dict["state"] as? String else { return }
+    private func inferDisplayName(agentId: String) -> String {
+        agentId == "main" ? "IronClaw 主代理" : agentId
+    }
 
-                if let idx = self.agents.firstIndex(where: { $0.id == sessionKey }) {
-                    var agent = self.agents[idx]
-                    let newStatus: AgentRun.Status = switch state {
-                    case "delta": .streaming
-                    case "final": .idle
-                    case "error": .error
-                    default: agent.status
-                    }
+    private func inferEmoji(agentId: String) -> String? {
+        agentId == "main" ? "🤖" : nil
+    }
 
-                    self.agents[idx] = AgentRun(
-                        id: agent.id,
-                        agentId: agent.agentId,
-                        displayName: agent.displayName,
-                        emoji: agent.emoji,
-                        sessionTitle: agent.sessionTitle,
-                        status: newStatus,
-                        model: agent.model,
-                        kind: agent.kind,
-                        latestOutput: agent.latestOutput,
-                        startedAt: agent.startedAt
-                    )
-                }
-            }
+    private func inferStatus(from kind: String?) -> AgentRun.Status {
+        switch kind {
+        case "cron": .toolUse
+        case "subagent": .thinking
+        default: .idle
         }
+    }
+
+    private func parseAgentId(from sessionKey: String) -> String {
+        let parts = sessionKey.split(separator: ":")
+        return parts.count > 1 ? String(parts[1]) : "main"
+    }
+
+    private func parseStartedAt(from session: [String: Any]) -> Date? {
+        if let startedAt = session["startedAt"] as? Int {
+            return Date(timeIntervalSince1970: Double(startedAt) / 1000)
+        }
+        if let updatedAt = session["updatedAt"] as? Int {
+            return Date(timeIntervalSince1970: Double(updatedAt) / 1000)
+        }
+        return nil
+    }
+
+    private func extractLatestOutput(from session: [String: Any]) -> String? {
+        (session["lastMessage"] as? String) ?? (session["label"] as? String)
+    }
+
+    private func extractSessionTitle(from session: [String: Any]) -> String? {
+        (session["derivedTitle"] as? String) ?? (session["label"] as? String)
     }
 
     func refresh(gateway: GatewayClient) async {
@@ -283,13 +289,12 @@ final class LiveAgentsViewModel: ObservableObject {
         defer { isLoading = false }
 
         do {
-            // Get sessions
             let sessResponse = try await gateway.sendRequest(
                 method: "sessions.list",
                 params: [
                     "limit": 50,
                     "includeDerivedTitles": true,
-                    "includeLastMessage": true
+                    "includeLastMessage": true,
                 ]
             )
 
@@ -297,47 +302,29 @@ final class LiveAgentsViewModel: ObservableObject {
                   let payload = sessResponse.payload?.dict,
                   let sessions = payload["sessions"] as? [[String: Any]] else { return }
 
-            // Get agent identities
-            var identities: [String: (name: String, emoji: String?)] = [:]
-            let idResponse = try? await gateway.sendRequest(method: "agent.identity", params: [:])
-            if let idPayload = idResponse?.payload?.dict {
-                let name = idPayload["name"] as? String ?? "main"
-                let emoji = idPayload["emoji"] as? String
-                identities["main"] = (name, emoji)
-            }
-
             var runs: [AgentRun] = []
 
-            for sess in sessions {
-                guard let key = sess["key"] as? String else { continue }
+            for session in sessions {
+                guard let key = session["key"] as? String else { continue }
 
-                // Skip cron sessions older than 1 hour
-                let kind = sess["kind"] as? String ?? "direct"
-
-                // Parse agent ID from session key (format: agent:<agentId>:<rest>)
-                let parts = key.split(separator: ":")
-                let agentId = parts.count > 1 ? String(parts[1]) : "main"
-
-                let identity = identities[agentId]
-                let title = sess["derivedTitle"] as? String
-                let lastMessage = sess["lastMessage"] as? String
-                let model = sess["model"] as? String
+                let agentId = parseAgentId(from: key)
+                let kind = session["kind"] as? String ?? "direct"
+                let model = session["model"] as? String
 
                 runs.append(AgentRun(
                     id: key,
                     agentId: agentId,
-                    displayName: identity?.name ?? agentId,
-                    emoji: identity?.emoji,
-                    sessionTitle: title,
-                    status: .idle,
+                    displayName: inferDisplayName(agentId: agentId),
+                    emoji: inferEmoji(agentId: agentId),
+                    sessionTitle: extractSessionTitle(from: session),
+                    status: inferStatus(from: kind),
                     model: model,
                     kind: kind,
-                    latestOutput: lastMessage,
-                    startedAt: nil
+                    latestOutput: extractLatestOutput(from: session),
+                    startedAt: parseStartedAt(from: session)
                 ))
             }
 
-            // Sort: active first, then by name
             agents = runs.sorted { a, b in
                 if a.isActive != b.isActive { return a.isActive }
                 return a.displayName < b.displayName

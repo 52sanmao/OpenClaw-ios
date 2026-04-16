@@ -1,7 +1,7 @@
 import Foundation
 import Network
 
-/// Discovers OpenClaw Gateways on the local network via Bonjour.
+/// Discovers compatible IronClaw services on the local network via Bonjour.
 @MainActor
 final class BonjourDiscovery: ObservableObject {
     struct Gateway: Identifiable, Equatable {
