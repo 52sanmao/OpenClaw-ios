@@ -124,6 +124,19 @@ struct ConnectView: View {
                         }
                     }
 
+                    if let lastLog = gateway.debugLog.last {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("最近诊断")
+                                .font(.label(10, weight: .bold))
+                                .tracking(1.5)
+                                .foregroundStyle(Color.textTertiary)
+                            Text(lastLog)
+                                .font(.body(11))
+                                .foregroundStyle(Color.textSecondary)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
                     // Connect button
                     Button { connect() } label: {
                         HStack {

@@ -4,6 +4,7 @@ struct CronView: View {
     @EnvironmentObject var gateway: GatewayClient
     @State private var jobs: [CronJob] = []
     @State private var isLoading = false
+    @State private var errorMessage: String?
 
     var body: some View {
         ZStack {
@@ -20,6 +21,19 @@ struct CronView: View {
                 .padding(.horizontal, 20)
                 .padding(.top, 16)
                 .padding(.bottom, 12)
+
+                if let errorMessage {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(errorMessage)
+                            .font(.body(12))
+                            .foregroundStyle(Color.ocError)
+                        Text("如果这里只有 routines 失败，而聊天页面仍可正常回复，说明故障在定时任务接口，不是整个 App 不可用。")
+                            .font(.label(10))
+                            .foregroundStyle(Color.textTertiary)
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.bottom, 8)
+                }
 
                 if isLoading && jobs.isEmpty {
                     Spacer()
@@ -39,6 +53,12 @@ struct CronView: View {
                     .frame(maxWidth: .infinity)
                     Spacer()
                 } else {
+                    Text("此页直接调用 /api/routines、/toggle 与 /trigger。")
+                        .font(.label(10))
+                        .foregroundStyle(Color.textTertiary)
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 8)
+
                     ScrollView {
                         LazyVStack(spacing: 10) {
                             ForEach(jobs) { job in
@@ -67,6 +87,7 @@ struct CronView: View {
 
     private func loadJobs() async {
         isLoading = true
+        errorMessage = nil
         defer { isLoading = false }
         do {
             let response = try await gateway.sendRequest(method: "cron.list", params: ["includeDisabled": true])
@@ -84,17 +105,29 @@ struct CronView: View {
                     payload: CronJob.CronPayload(kind: pay?["kind"] as? String, text: pay?["text"] as? String, message: pay?["message"] as? String)
                 )
             }
-        } catch {}
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 
     private func toggleJob(_ job: CronJob) async {
-        _ = try? await gateway.sendRequest(method: "cron.update", params: ["jobId": job.id, "patch": ["enabled": !job.enabled] as [String: Any]])
+        do {
+            _ = try await gateway.sendRequest(method: "cron.update", params: ["jobId": job.id, "patch": ["enabled": !job.enabled] as [String: Any]])
+            errorMessage = nil
+        } catch {
+            errorMessage = error.localizedDescription
+        }
         await loadJobs()
     }
 
     private func runJob(_ job: CronJob) async {
-        _ = try? await gateway.sendRequest(method: "cron.run", params: ["jobId": job.id])
-        Haptics.notification(.success)
+        do {
+            _ = try await gateway.sendRequest(method: "cron.run", params: ["jobId": job.id])
+            errorMessage = nil
+            Haptics.notification(.success)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 }
 

@@ -17,11 +17,38 @@ final class GatewayClient: ObservableObject {
     @Published var serverHost: String = ""
     @Published var connId: String = ""
     @Published var uptimeMs: Int = 0
+    @Published var debugLog: [String] = []
 
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
     private var eventHandlers: [String: [(AnyCodable?) -> Void]] = [:]
     private var threadIDsBySessionKey: [String: String] = [:]
+    private let debugLogLimit = 200
+
+    private func log(_ message: String) {
+        let timestamp = ISO8601DateFormatter().string(from: Date())
+        let entry = "[\(timestamp)] \(message)"
+        debugLog.append(entry)
+        if debugLog.count > debugLogLimit {
+            debugLog.removeFirst(debugLog.count - debugLogLimit)
+        }
+    }
+
+    var debugLogExportText: String {
+        let lines = [
+            "IronClaw 主机: \(serverHost.isEmpty ? "未连接" : serverHost)",
+            "版本: \(serverVersion.isEmpty ? "未知" : serverVersion)",
+            "连接状态: \(String(describing: connectionState))",
+            "聊天链路: /api/chat/thread/new -> /api/chat/send -> /api/chat/history",
+            "",
+            "调试日志:",
+        ] + debugLog
+        return lines.joined(separator: "\n")
+    }
+
+    func clearDebugLog() {
+        debugLog.removeAll()
+    }
 
     private var config: ConnectionConfig? {
         ConnectionStore.load()
@@ -37,6 +64,7 @@ final class GatewayClient: ObservableObject {
 
         connectionState = .connecting
         ConnectionStore.save(cfg)
+        log("开始连接 \(cfg.httpBaseURL.absoluteString)")
 
         do {
             let models = try await fetchModels(config: cfg)
@@ -45,15 +73,18 @@ final class GatewayClient: ObservableObject {
             connId = ""
             uptimeMs = 0
             await mappedConnectionMetadata(config: cfg)
+            log("模型探活成功，已连接到 \(serverHost)")
             connectionState = .connected
         } catch {
             clearServerInfo()
+            log("连接失败: \(error.localizedDescription)")
             connectionState = .error(error.localizedDescription)
             throw error
         }
     }
 
     func disconnect() {
+        log("手动断开连接")
         clearServerInfo()
         threadIDsBySessionKey.removeAll()
         connectionState = .disconnected
@@ -64,6 +95,8 @@ final class GatewayClient: ObservableObject {
         guard connectionState == .connected || config != nil else {
             throw GatewayError.notConnected
         }
+
+        log("请求 \(method)")
 
         switch method {
         case "ping":
@@ -120,16 +153,21 @@ final class GatewayClient: ObservableObject {
             Task {
                 do {
                     _ = model
+                    log("开始聊天会话 \(sessionKey)")
                     let threadId = try await resolveThreadID(sessionKey: sessionKey)
                     let baselineHistory = try await fetchThreadHistory(threadId: threadId)
                     try await sendThreadMessage(threadId: threadId, content: message)
                     let poll = try await waitForThreadTurn(threadId: threadId, afterTurnCount: baselineHistory.turns.count)
                     let reply = (poll.latestTurn.response ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
                     if !reply.isEmpty {
+                        log("聊天响应成功，thread=\(threadId)")
                         continuation.yield(reply)
+                    } else {
+                        log("聊天响应完成但内容为空，thread=\(threadId)")
                     }
                     continuation.finish()
                 } catch {
+                    log("聊天失败: \(error.localizedDescription)")
                     continuation.finish(throwing: error)
                 }
             }

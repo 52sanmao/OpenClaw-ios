@@ -1,9 +1,11 @@
 import SwiftUI
+import UIKit
 
 struct HealthView: View {
     @EnvironmentObject var gateway: GatewayClient
     @State private var sessionCount = 0
     @State private var isLoading = false
+    @State private var healthError: String?
 
     var body: some View {
         ZStack {
@@ -34,6 +36,59 @@ struct HealthView: View {
                         }
                         .vanguardCard()
                     }
+
+                    if let healthError {
+                        VStack(alignment: .leading, spacing: 8) {
+                            SectionLabel(text: "错误")
+                            Text(healthError)
+                                .font(.body(12))
+                                .foregroundStyle(Color.ocError)
+                            Text("如果这里只有统计或 routines 失败，而聊天页仍能对话，问题通常在扩展接口而不是聊天主链路。")
+                                .font(.label(10))
+                                .foregroundStyle(Color.textTertiary)
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 12) {
+                        SectionLabel(text: "调试日志")
+
+                        VStack(alignment: .leading, spacing: 8) {
+                            if gateway.debugLog.isEmpty {
+                                Text("尚无调试日志")
+                                    .font(.body(12))
+                                    .foregroundStyle(Color.textTertiary)
+                            } else {
+                                ForEach(Array(gateway.debugLog.suffix(8).enumerated()), id: \.offset) { _, entry in
+                                    Text(entry)
+                                        .font(.body(11))
+                                        .foregroundStyle(Color.textSecondary)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                            }
+
+                            HStack(spacing: 12) {
+                                Button("复制日志") {
+                                    UIPasteboard.general.string = gateway.debugLogExportText
+                                }
+                                .font(.label(10, weight: .bold))
+                                .tracking(1.5)
+                                .foregroundStyle(Color.ocPrimary)
+
+                                Button("清空日志") {
+                                    gateway.clearDebugLog()
+                                }
+                                .font(.label(10, weight: .bold))
+                                .tracking(1.5)
+                                .foregroundStyle(Color.textTertiary)
+                            }
+                        }
+                        .padding(14)
+                        .vanguardCard()
+                    }
+
+                    Text("健康页显示的是主 HTTP 链路与最近请求日志，用来区分聊天主路径故障和扩展接口故障。")
+                        .font(.label(10))
+                        .foregroundStyle(Color.textTertiary)
 
                     // Usage
                     VStack(alignment: .leading, spacing: 12) {
@@ -77,12 +132,19 @@ struct HealthView: View {
 
     private func loadHealth() async {
         isLoading = true
+        healthError = nil
         defer { isLoading = false }
-        if let response = try? await gateway.sendRequest(method: "sessions.list", params: ["limit": 100]),
-           response.ok,
-           let payload = response.payload?.dict,
-           let sessions = payload["sessions"] as? [[String: Any]] {
+        do {
+            let response = try await gateway.sendRequest(method: "sessions.list", params: ["limit": 100])
+            guard response.ok,
+                  let payload = response.payload?.dict,
+                  let sessions = payload["sessions"] as? [[String: Any]] else {
+                healthError = "会话列表返回了不可识别的数据"
+                return
+            }
             sessionCount = sessions.count
+        } catch {
+            healthError = error.localizedDescription
         }
     }
 }
