@@ -83,13 +83,10 @@ final class GatewayClient: ObservableObject {
 
         case "cron.list":
             let includeDisabled = params?["includeDisabled"] as? Bool ?? true
-            let payload = try await invokeTool(
-                tool: "cron",
-                args: [
-                    "action": "list",
-                    "includeDisabled": includeDisabled,
-                ]
-            )
+            let routines = try await fetchRoutines(includeDisabled: includeDisabled)
+            let payload: [String: Any] = [
+                "jobs": routines.map(Self.cronJobPayload(from:))
+            ]
             return ResponseFrame(type: "res", id: UUID().uuidString, ok: true, payload: AnyCodable(payload), error: nil)
 
         case "cron.update":
@@ -97,27 +94,14 @@ final class GatewayClient: ObservableObject {
                   let patch = params?["patch"] as? [String: Any] else {
                 throw GatewayError.invalidResponse
             }
-            let payload = try await invokeTool(
-                tool: "cron",
-                args: [
-                    "action": "update",
-                    "jobId": jobId,
-                    "patch": patch,
-                ]
-            )
+            let payload = try await updateRoutine(jobId: jobId, patch: patch)
             return ResponseFrame(type: "res", id: UUID().uuidString, ok: true, payload: AnyCodable(payload), error: nil)
 
         case "cron.run":
             guard let jobId = params?["jobId"] as? String else {
                 throw GatewayError.invalidResponse
             }
-            let payload = try await invokeTool(
-                tool: "cron",
-                args: [
-                    "action": "run",
-                    "jobId": jobId,
-                ]
-            )
+            let payload = try await triggerRoutine(jobId: jobId)
             return ResponseFrame(type: "res", id: UUID().uuidString, ok: true, payload: AnyCodable(payload), error: nil)
 
         default:
@@ -288,6 +272,98 @@ final class GatewayClient: ObservableObject {
         return nil
     }
 
+    private func fetchRoutines(includeDisabled: Bool) async throws -> [IronClawRoutineInfo] {
+        let cfg = try requireConfig()
+        let token = try requireToken(cfg)
+        let url = try buildURL(baseURL: cfg.httpBaseURL, path: "api/routines")
+
+        var req = URLRequest(url: url)
+        req.httpMethod = "GET"
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await URLSession.shared.data(for: req)
+        try validateHTTPResponse(response, data: data, path: "api/routines")
+        let decoded = try snakeCaseDecoder.decode(IronClawRoutineListResponse.self, from: data)
+        if includeDisabled {
+            return decoded.routines
+        }
+        return decoded.routines.filter { $0.enabled ?? true }
+    }
+
+    private func updateRoutine(jobId: String, patch: [String: Any]) async throws -> [String: Any] {
+        guard patch["schedule"] == nil,
+              patch["name"] == nil,
+              let enabled = patch["enabled"] as? Bool else {
+            throw GatewayError.serverError(400, type: "unsupported_patch", message: "当前 IronClaw 部署仅支持启用或停用现有任务")
+        }
+
+        let cfg = try requireConfig()
+        let token = try requireToken(cfg)
+        let escapedJobId = jobId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? jobId
+        let url = try buildURL(baseURL: cfg.httpBaseURL, path: "api/routines/\(escapedJobId)/toggle")
+
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONSerialization.data(withJSONObject: ["enabled": enabled])
+
+        let (data, response) = try await URLSession.shared.data(for: req)
+        try validateHTTPResponse(response, data: data, path: "api/routines/\(escapedJobId)/toggle")
+        return ["ok": true, "jobId": jobId, "enabled": enabled]
+    }
+
+    private func triggerRoutine(jobId: String, mode: String = "force") async throws -> [String: Any] {
+        let cfg = try requireConfig()
+        let token = try requireToken(cfg)
+        let escapedJobId = jobId.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? jobId
+        let url = try buildURL(baseURL: cfg.httpBaseURL, path: "api/routines/\(escapedJobId)/trigger")
+
+        var req = URLRequest(url: url)
+        req.httpMethod = "POST"
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        req.httpBody = try JSONSerialization.data(withJSONObject: ["mode": mode])
+
+        let (data, response) = try await URLSession.shared.data(for: req)
+        try validateHTTPResponse(response, data: data, path: "api/routines/\(escapedJobId)/trigger")
+        return ["ok": true, "jobId": jobId, "mode": mode]
+    }
+
+    private static func cronJobPayload(from routine: IronClawRoutineInfo) -> [String: Any] {
+        var schedule: [String: Any] = [
+            "kind": routine.triggerType ?? "routine"
+        ]
+        if let expr = routine.triggerSummary ?? routine.triggerRaw ?? routine.description ?? routine.name {
+            schedule["expr"] = expr
+        }
+
+        var payload: [String: Any] = [:]
+        if let kind = routine.actionType {
+            payload["kind"] = kind
+        }
+        if let text = routine.description {
+            payload["text"] = text
+            payload["message"] = text
+        }
+
+        return [
+            "id": routine.id,
+            "name": routine.name as Any,
+            "enabled": routine.enabled ?? true,
+            "schedule": schedule,
+            "payload": payload,
+        ]
+    }
+
+    private static func timestampMs(from iso8601: String?) -> Int {
+        guard let iso8601,
+              let date = ISO8601DateFormatter().date(from: iso8601) else {
+            return Int(Date().timeIntervalSince1970 * 1000)
+        }
+        return Int(date.timeIntervalSince1970 * 1000)
+    }
+
     private func mappedChatHistoryPayload(sessionKey: String, history: IronClawThreadHistoryResponse) -> [String: Any] {
         [
             "sessionKey": sessionKey,
@@ -365,6 +441,21 @@ final class GatewayClient: ObservableObject {
         let status: String?
         let version: String?
         let uptimeSeconds: Double?
+    }
+
+    private struct IronClawRoutineListResponse: Decodable {
+        let routines: [IronClawRoutineInfo]
+    }
+
+    private struct IronClawRoutineInfo: Decodable {
+        let id: String
+        let name: String?
+        let description: String?
+        let enabled: Bool?
+        let triggerType: String?
+        let triggerRaw: String?
+        let triggerSummary: String?
+        let actionType: String?
     }
 
     func onEvent(_ eventName: String, handler: @escaping (AnyCodable?) -> Void) {
