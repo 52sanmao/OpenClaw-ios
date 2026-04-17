@@ -652,7 +652,7 @@ final class GatewayClient: ObservableObject {
     }
 
     private func makeThreadSessionPayload(thread: IronClawThreadInfo, sessionKey: String, fallbackTitle: String) -> [String: Any] {
-        let title = fallbackTitle(for: thread)
+        let title = fallbackTitle
         return [
             "key": sessionKey,
             "id": thread.id,
