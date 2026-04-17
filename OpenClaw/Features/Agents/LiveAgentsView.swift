@@ -5,6 +5,10 @@ struct LiveAgentsView: View {
     @EnvironmentObject var gateway: GatewayClient
     @StateObject private var viewModel = LiveAgentsViewModel()
 
+    private var latestHint: String? {
+        gateway.agentsErrorHint()
+    }
+
     var body: some View {
         ZStack {
             Color.surfaceBase.ignoresSafeArea()
@@ -47,10 +51,17 @@ struct LiveAgentsView: View {
                         Image(systemName: "bolt.slash")
                             .font(.system(size: 40))
                             .foregroundStyle(Color.textTertiary)
-                        Text("暂无活跃代理")
+                        Text(viewModel.errorMessage ?? "暂无活跃代理")
                             .font(.label(11, weight: .bold))
                             .tracking(2)
-                            .foregroundStyle(Color.textTertiary)
+                            .foregroundStyle(viewModel.errorMessage == nil ? Color.textTertiary : Color.ocError)
+                        if let latestHint {
+                            Text(latestHint)
+                                .font(.body(11))
+                                .foregroundStyle(Color.textTertiary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 24)
+                        }
                     }
                     .frame(maxWidth: .infinity)
                     Spacer()
@@ -237,6 +248,7 @@ struct AgentRun: Identifiable {
 final class LiveAgentsViewModel: ObservableObject {
     @Published var agents: [AgentRun] = []
     @Published var isLoading = false
+    @Published var errorMessage: String?
 
     private var listeningSetup = false
 
@@ -286,9 +298,11 @@ final class LiveAgentsViewModel: ObservableObject {
 
     func refresh(gateway: GatewayClient) async {
         isLoading = true
+        errorMessage = nil
         defer { isLoading = false }
 
         do {
+            gateway.noteViewRequest("agents_view", detail: "刷新代理列表（基于 sessions 映射）")
             let sessResponse = try await gateway.sendRequest(
                 method: "sessions.list",
                 params: [
@@ -300,7 +314,11 @@ final class LiveAgentsViewModel: ObservableObject {
 
             guard sessResponse.ok,
                   let payload = sessResponse.payload?.dict,
-                  let sessions = payload["sessions"] as? [[String: Any]] else { return }
+                  let sessions = payload["sessions"] as? [[String: Any]] else {
+                errorMessage = "代理列表返回了不可识别的数据"
+                gateway.noteViewFailure("agents_view", error: GatewayError.invalidResponse)
+                return
+            }
 
             var runs: [AgentRun] = []
 
@@ -329,7 +347,10 @@ final class LiveAgentsViewModel: ObservableObject {
                 if a.isActive != b.isActive { return a.isActive }
                 return a.displayName < b.displayName
             }
+            gateway.noteViewSuccess("agents_view", detail: "代理数=\(agents.count)")
         } catch {
+            errorMessage = error.localizedDescription
+            gateway.noteViewFailure("agents_view", error: error)
             NSLog("[Agents] refresh failed: \(error)")
         }
     }

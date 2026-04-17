@@ -4,6 +4,11 @@ struct SessionsView: View {
     @EnvironmentObject var gateway: GatewayClient
     @State private var sessions: [SessionInfo] = []
     @State private var isLoading = false
+    @State private var errorMessage: String?
+
+    private var latestHint: String? {
+        gateway.sessionsErrorHint()
+    }
 
     var body: some View {
         ZStack {
@@ -32,10 +37,17 @@ struct SessionsView: View {
                         Image(systemName: "list.bullet.rectangle.portrait")
                             .font(.system(size: 40))
                             .foregroundStyle(Color.textTertiary)
-                        Text("暂无活跃会话")
+                        Text(errorMessage ?? "暂无活跃会话")
                             .font(.label(11, weight: .bold))
                             .tracking(2)
-                            .foregroundStyle(Color.textTertiary)
+                            .foregroundStyle(errorMessage == nil ? Color.textTertiary : Color.ocError)
+                        if let latestHint {
+                            Text(latestHint)
+                                .font(.body(11))
+                                .foregroundStyle(Color.textTertiary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 24)
+                        }
                     }
                     .frame(maxWidth: .infinity)
                     Spacer()
@@ -65,15 +77,21 @@ struct SessionsView: View {
 
     private func loadSessions() async {
         isLoading = true
+        errorMessage = nil
         defer { isLoading = false }
         do {
+            gateway.noteViewRequest("sessions_view", detail: "刷新会话列表")
             let response = try await gateway.sendRequest(
                 method: "sessions.list",
                 params: ["limit": 50, "includeDerivedTitles": true, "includeLastMessage": true]
             )
             guard response.ok,
                   let payload = response.payload?.dict,
-                  let arr = payload["sessions"] as? [[String: Any]] else { return }
+                  let arr = payload["sessions"] as? [[String: Any]] else {
+                errorMessage = "会话列表返回了不可识别的数据"
+                gateway.noteViewFailure("sessions_view", error: GatewayError.invalidResponse)
+                return
+            }
             sessions = arr.compactMap { dict in
                 guard let key = dict["key"] as? String else { return nil }
                 return SessionInfo(
@@ -84,7 +102,11 @@ struct SessionsView: View {
                     kind: dict["kind"] as? String
                 )
             }
-        } catch {}
+            gateway.noteViewSuccess("sessions_view", detail: "会话数=\(sessions.count)")
+        } catch {
+            errorMessage = error.localizedDescription
+            gateway.noteViewFailure("sessions_view", error: error)
+        }
     }
 }
 

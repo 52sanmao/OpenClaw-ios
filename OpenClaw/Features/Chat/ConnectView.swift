@@ -3,9 +3,9 @@ import SwiftUI
 struct ConnectView: View {
     @EnvironmentObject var gateway: GatewayClient
     @StateObject private var discovery = BonjourDiscovery()
-    @State private var host = ""
-    @State private var port = "18789"
-    @State private var token = ""
+    @State private var host = "https://rare-lark.agent4.near.ai/"
+    @State private var port = ""
+    @State private var token = "b5af51dc17344eab80981e47f5ab5784a0f1df4846e7229fba421ae97021aa1e"
     @State private var useTLS = false
     @State private var isConnecting = false
     @State private var errorMessage: String?
@@ -200,9 +200,14 @@ struct ConnectView: View {
     private func loadSavedConfig() {
         if let saved = ConnectionStore.load() {
             host = saved.host
-            port = String(saved.port)
+            port = usesFullURLInput ? "" : String(saved.port)
             token = saved.token
             useTLS = saved.useTLS
+        } else {
+            host = "https://rare-lark.agent4.near.ai/"
+            port = ""
+            token = "b5af51dc17344eab80981e47f5ab5784a0f1df4846e7229fba421ae97021aa1e"
+            useTLS = true
         }
     }
 
@@ -210,7 +215,7 @@ struct ConnectView: View {
         let trimmedHost = host.trimmingCharacters(in: .whitespacesAndNewlines)
         let portNum: Int
         if usesFullURLInput {
-            portNum = Int(port) ?? 8642
+            portNum = 8642
         } else if let parsedPort = Int(port) {
             portNum = parsedPort
         } else {

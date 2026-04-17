@@ -4,6 +4,11 @@ struct NodesView: View {
     @EnvironmentObject var gateway: GatewayClient
     @State private var nodes: [NodeInfo] = []
     @State private var isLoading = false
+    @State private var errorMessage: String?
+
+    private var latestHint: String? {
+        gateway.nodesErrorHint()
+    }
 
     var body: some View {
         ZStack {
@@ -31,10 +36,17 @@ struct NodesView: View {
                         Image(systemName: "antenna.radiowaves.left.and.right")
                             .font(.system(size: 40))
                             .foregroundStyle(Color.textTertiary)
-                        Text("暂无可见 IronClaw 节点")
+                        Text(errorMessage ?? "暂无可见 IronClaw 节点")
                             .font(.label(11, weight: .bold))
                             .tracking(2)
-                            .foregroundStyle(Color.textTertiary)
+                            .foregroundStyle(errorMessage == nil ? Color.textTertiary : Color.ocError)
+                        if let latestHint {
+                            Text(latestHint)
+                                .font(.body(11))
+                                .foregroundStyle(Color.textTertiary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 24)
+                        }
                     }
                     .frame(maxWidth: .infinity)
                     Spacer()
@@ -63,12 +75,18 @@ struct NodesView: View {
 
     private func loadNodes() async {
         isLoading = true
+        errorMessage = nil
         defer { isLoading = false }
         do {
+            gateway.noteViewRequest("nodes_view", detail: "刷新节点列表（基于 sessions 映射）")
             let response = try await gateway.sendRequest(method: "sessions.list", params: ["limit": 100])
             guard response.ok,
                   let payload = response.payload?.dict,
-                  let sessions = payload["sessions"] as? [[String: Any]] else { return }
+                  let sessions = payload["sessions"] as? [[String: Any]] else {
+                errorMessage = "节点列表返回了不可识别的数据"
+                gateway.noteViewFailure("nodes_view", error: GatewayError.invalidResponse)
+                return
+            }
 
             nodes = sessions.compactMap { dict in
                 guard let key = dict["key"] as? String else { return nil }
@@ -82,7 +100,11 @@ struct NodesView: View {
                     lastSeen: nil
                 )
             }
-        } catch {}
+            gateway.noteViewSuccess("nodes_view", detail: "节点数=\(nodes.count)")
+        } catch {
+            errorMessage = error.localizedDescription
+            gateway.noteViewFailure("nodes_view", error: error)
+        }
     }
 }
 

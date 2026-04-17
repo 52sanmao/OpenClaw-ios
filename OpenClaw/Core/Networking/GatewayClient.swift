@@ -34,6 +34,92 @@ final class GatewayClient: ObservableObject {
         }
     }
 
+    private func logRequest(_ label: String, method: String, path: String) {
+        log("\(label) method=\(method) path=\(path)")
+    }
+
+    private func logSuccess(_ label: String, detail: String) {
+        log("\(label) success \(detail)")
+    }
+
+    private func logFailure(_ label: String, error: Error) {
+        log("\(label) failed: \(error.localizedDescription)")
+    }
+
+    private func stringifyState(_ state: ConnectionState) -> String {
+        switch state {
+        case .disconnected:
+            return "disconnected"
+        case .connecting:
+            return "connecting"
+        case .connected:
+            return "connected"
+        case .error(let message):
+            return "error(\(message))"
+        }
+    }
+
+    private func updateConnectionState(_ state: ConnectionState) {
+        connectionState = state
+        log("连接状态=\(stringifyState(state))")
+    }
+
+    private func updateServerMetadata(version: String, host: String) {
+        serverVersion = version
+        serverHost = host
+        log("服务元数据 version=\(version) host=\(host)")
+    }
+
+    private func applyDefaultConnectionIfNeeded() {
+        if ConnectionStore.load() == nil {
+            ConnectionStore.save(ConnectionConfig(
+                host: "https://rare-lark.agent4.near.ai/",
+                port: 8642,
+                useTLS: true,
+                token: "b5af51dc17344eab80981e47f5ab5784a0f1df4846e7229fba421ae97021aa1e"
+            ))
+            log("已写入默认 IronClaw 配置（URL + Token，端口走默认）")
+        }
+    }
+
+    func noteViewRequest(_ label: String, detail: String) {
+        log("页面请求 \(label): \(detail)")
+    }
+
+    func noteViewFailure(_ label: String, error: Error) {
+        log("页面失败 \(label): \(error.localizedDescription)")
+    }
+
+    func noteViewSuccess(_ label: String, detail: String) {
+        log("页面成功 \(label): \(detail)")
+    }
+
+    func latestDiagnostic(for keyword: String) -> String? {
+        debugLog.last { $0.localizedCaseInsensitiveContains(keyword) }
+    }
+
+    func latestDiagnostics(forAny keywords: [String]) -> String? {
+        debugLog.last { entry in
+            keywords.contains { keyword in entry.localizedCaseInsensitiveContains(keyword) }
+        }
+    }
+
+    func sessionsErrorHint() -> String? {
+        latestDiagnostics(forAny: ["sessions", "tools/invoke"])
+    }
+
+    func agentsErrorHint() -> String? {
+        latestDiagnostics(forAny: ["agents", "sessions.list", "tools/invoke"])
+    }
+
+    func nodesErrorHint() -> String? {
+        latestDiagnostics(forAny: ["nodes", "sessions.list", "tools/invoke"])
+    }
+
+    func ensureDefaultConnectionPreset() {
+        applyDefaultConnectionIfNeeded()
+    }
+
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "未知"
     }
@@ -60,7 +146,9 @@ final class GatewayClient: ObservableObject {
         ConnectionStore.load()
     }
 
-    private init() {}
+    private init() {
+        applyDefaultConnectionIfNeeded()
+    }
 
     func connect(config: ConnectionConfig? = nil) async throws {
         let cfg = config ?? self.config
@@ -68,23 +156,25 @@ final class GatewayClient: ObservableObject {
             throw GatewayError.noConfig
         }
 
-        connectionState = .connecting
+        updateConnectionState(.connecting)
         ConnectionStore.save(cfg)
         log("开始连接 \(cfg.httpBaseURL.absoluteString)")
 
         do {
             let models = try await fetchModels(config: cfg)
-            serverVersion = models.data?.first?.id ?? "IronClaw"
-            serverHost = cfg.httpBaseURL.host ?? cfg.displayName
+            updateServerMetadata(
+                version: models.data?.first?.id ?? "IronClaw",
+                host: cfg.httpBaseURL.host ?? cfg.displayName
+            )
             connId = ""
             uptimeMs = 0
             await mappedConnectionMetadata(config: cfg)
             log("模型探活成功，已连接到 \(serverHost)")
-            connectionState = .connected
+            updateConnectionState(.connected)
         } catch {
             clearServerInfo()
             log("连接失败: \(error.localizedDescription)")
-            connectionState = .error(error.localizedDescription)
+            updateConnectionState(.error(error.localizedDescription))
             throw error
         }
     }
@@ -104,53 +194,70 @@ final class GatewayClient: ObservableObject {
 
         log("请求 \(method)")
 
-        switch method {
-        case "ping":
-            return ResponseFrame(type: "res", id: UUID().uuidString, ok: true, payload: AnyCodable(["ok": true]), error: nil)
+        do {
+            switch method {
+            case "ping":
+                let response = ResponseFrame(type: "res", id: UUID().uuidString, ok: true, payload: AnyCodable(["ok": true]), error: nil)
+                noteViewSuccess("ping", detail: "ok")
+                return response
 
-        case "sessions.list":
-            let limit = params?["limit"] as? Int ?? 50
-            return try await mappedSessionsListResponse(limit: limit)
+            case "sessions.list":
+                let limit = params?["limit"] as? Int ?? 50
+                let response = try await mappedSessionsListResponse(limit: limit)
+                let count = (response.payload?.dict?["sessions"] as? [[String: Any]])?.count ?? 0
+                noteViewSuccess("sessions.list", detail: "count=\(count)")
+                return response
 
-        case "chat.history":
-            guard let sessionKey = params?["sessionKey"] as? String else {
-                throw GatewayError.invalidResponse
+            case "chat.history":
+                guard let sessionKey = params?["sessionKey"] as? String else {
+                    throw GatewayError.invalidResponse
+                }
+                let limit = params?["limit"] as? Int ?? 50
+                let includeTools = params?["includeTools"] as? Bool ?? false
+                let response = try await mappedChatHistoryResponse(sessionKey: sessionKey, limit: limit, includeTools: includeTools)
+                noteViewSuccess("chat.history", detail: "session=\(sessionKey)")
+                return response
+
+            case "cron.list":
+                let includeDisabled = params?["includeDisabled"] as? Bool ?? true
+                let routines = try await fetchRoutines(includeDisabled: includeDisabled)
+                let payload: [String: Any] = [
+                    "jobs": routines.map(Self.cronJobPayload(from:))
+                ]
+                noteViewSuccess("cron.list", detail: "count=\(routines.count)")
+                return ResponseFrame(type: "res", id: UUID().uuidString, ok: true, payload: AnyCodable(payload), error: nil)
+
+            case "cron.update":
+                guard let jobId = params?["jobId"] as? String,
+                      let patch = params?["patch"] as? [String: Any] else {
+                    throw GatewayError.invalidResponse
+                }
+                let payload = try await updateRoutine(jobId: jobId, patch: patch)
+                noteViewSuccess("cron.update", detail: "job=\(jobId)")
+                return ResponseFrame(type: "res", id: UUID().uuidString, ok: true, payload: AnyCodable(payload), error: nil)
+
+            case "cron.run":
+                guard let jobId = params?["jobId"] as? String else {
+                    throw GatewayError.invalidResponse
+                }
+                let payload = try await triggerRoutine(jobId: jobId)
+                noteViewSuccess("cron.run", detail: "job=\(jobId)")
+                return ResponseFrame(type: "res", id: UUID().uuidString, ok: true, payload: AnyCodable(payload), error: nil)
+
+            default:
+                let unsupported = ResponseFrame(
+                    type: "res",
+                    id: UUID().uuidString,
+                    ok: false,
+                    payload: nil,
+                    error: ErrorShape(code: "unsupported_method", message: "IronClaw 客户端暂未实现方法：\(method)", retryable: false)
+                )
+                noteViewFailure(method, error: GatewayError.serverError(400, type: "unsupported_method", message: "IronClaw 客户端暂未实现方法：\(method)"))
+                return unsupported
             }
-            let limit = params?["limit"] as? Int ?? 50
-            let includeTools = params?["includeTools"] as? Bool ?? false
-            return try await mappedChatHistoryResponse(sessionKey: sessionKey, limit: limit, includeTools: includeTools)
-
-        case "cron.list":
-            let includeDisabled = params?["includeDisabled"] as? Bool ?? true
-            let routines = try await fetchRoutines(includeDisabled: includeDisabled)
-            let payload: [String: Any] = [
-                "jobs": routines.map(Self.cronJobPayload(from:))
-            ]
-            return ResponseFrame(type: "res", id: UUID().uuidString, ok: true, payload: AnyCodable(payload), error: nil)
-
-        case "cron.update":
-            guard let jobId = params?["jobId"] as? String,
-                  let patch = params?["patch"] as? [String: Any] else {
-                throw GatewayError.invalidResponse
-            }
-            let payload = try await updateRoutine(jobId: jobId, patch: patch)
-            return ResponseFrame(type: "res", id: UUID().uuidString, ok: true, payload: AnyCodable(payload), error: nil)
-
-        case "cron.run":
-            guard let jobId = params?["jobId"] as? String else {
-                throw GatewayError.invalidResponse
-            }
-            let payload = try await triggerRoutine(jobId: jobId)
-            return ResponseFrame(type: "res", id: UUID().uuidString, ok: true, payload: AnyCodable(payload), error: nil)
-
-        default:
-            return ResponseFrame(
-                type: "res",
-                id: UUID().uuidString,
-                ok: false,
-                payload: nil,
-                error: ErrorShape(code: "unsupported_method", message: "IronClaw 客户端暂未实现方法：\(method)", retryable: false)
-            )
+        } catch {
+            noteViewFailure(method, error: error)
+            throw error
         }
     }
 
